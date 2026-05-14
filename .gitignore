@@ -1,6 +1,7 @@
 node_modules/
 dist/
 data/
+.aws-deploy/
 .env
 .DS_Store
 npm-debug.log*
