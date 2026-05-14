@@ -144,6 +144,12 @@ STORAGE_MODE=memory npm run dev
 
 The `POST /reset` endpoint deletes persisted domains and loads the submitted fixtures, so use it carefully if you want to keep existing data.
 
+## AWS Deployment
+
+Deployment is configured for AWS EC2 using Docker Compose, Caddy, and GitHub Actions.
+
+See `docs/AWS_DEPLOYMENT.md` for the EC2 setup, GitHub secrets, security group ports, and DNS instructions for `eppmock.melendez.mx`.
+
 ## Next Step Toward PostgreSQL
 
 Keep the EPP handlers intact and replace only the repository:
