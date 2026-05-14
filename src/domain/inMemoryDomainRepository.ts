@@ -36,6 +36,7 @@ export class InMemoryDomainRepository implements DomainRepository {
       registrantContact: input.registrantContact,
       contacts: input.contacts ?? [],
       authInfo: input.authInfo,
+      dsRecords: input.dsRecords ?? [],
       createdAt: createdAt.toISOString(),
       expiresAt: expiresAt.toISOString()
     };
@@ -63,6 +64,7 @@ export class InMemoryDomainRepository implements DomainRepository {
       statuses: normalizeStatuses(updateList(domain.statuses, input.statusesToAdd, input.statusesToRemove)),
       registrantContact: input.registrantContact ?? domain.registrantContact,
       authInfo: input.authInfo ?? domain.authInfo,
+      dsRecords: updateDsRecords(domain.dsRecords, input.dsRecordsToAdd, input.dsRecordsToRemove),
       updatedAt: new Date().toISOString()
     };
 
@@ -151,7 +153,8 @@ export class InMemoryDomainRepository implements DomainRepository {
         name: normalizeDomainName(record.name),
         statuses: normalizeStatuses(record.statuses),
         nameservers: unique(record.nameservers ?? []),
-        contacts: record.contacts ?? []
+        contacts: record.contacts ?? [],
+        dsRecords: record.dsRecords ?? []
       });
     }
   }
@@ -187,6 +190,27 @@ function updateContacts(
   }
 
   return [...contactMap.values()];
+}
+
+function updateDsRecords(
+  current: DomainRecord["dsRecords"],
+  toAdd: DomainRecord["dsRecords"] = [],
+  toRemove: DomainRecord["dsRecords"] = []
+): DomainRecord["dsRecords"] {
+  const removeSet = new Set(toRemove.map(dsKey));
+  const dsMap = new Map(
+    current.filter((record) => !removeSet.has(dsKey(record))).map((record) => [dsKey(record), record])
+  );
+
+  for (const record of toAdd) {
+    dsMap.set(dsKey(record), record);
+  }
+
+  return [...dsMap.values()];
+}
+
+function dsKey(record: DomainRecord["dsRecords"][number]): string {
+  return `${record.keyTag}:${record.algorithm}:${record.digestType}:${record.digest.toUpperCase()}`;
 }
 
 function normalizeStatuses(statuses: string[]): string[] {

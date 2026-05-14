@@ -18,6 +18,7 @@ interface DomainRow {
   registrant_contact: string | null;
   contacts_json: string | null;
   auth_info: string | null;
+  ds_records_json: string | null;
   created_at: string;
   updated_at: string | null;
   expires_at: string;
@@ -63,6 +64,7 @@ export class SqliteDomainRepository implements DomainRepository {
       registrantContact: input.registrantContact,
       contacts: input.contacts ?? [],
       authInfo: input.authInfo,
+      dsRecords: input.dsRecords ?? [],
       createdAt: createdAt.toISOString(),
       expiresAt: expiresAt.toISOString()
     };
@@ -93,6 +95,7 @@ export class SqliteDomainRepository implements DomainRepository {
       statuses: normalizeStatuses(updateList(domain.statuses, input.statusesToAdd, input.statusesToRemove)),
       registrantContact: input.registrantContact ?? domain.registrantContact,
       authInfo: input.authInfo ?? domain.authInfo,
+      dsRecords: updateDsRecords(domain.dsRecords, input.dsRecordsToAdd, input.dsRecordsToRemove),
       updatedAt: new Date().toISOString()
     };
 
@@ -204,11 +207,12 @@ export class SqliteDomainRepository implements DomainRepository {
           registrant_contact,
           contacts_json,
           auth_info,
+          ds_records_json,
           created_at,
           updated_at,
           expires_at,
           transfer_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(...domainValues(record));
   }
@@ -224,6 +228,7 @@ export class SqliteDomainRepository implements DomainRepository {
           registrant_contact = ?,
           contacts_json = ?,
           auth_info = ?,
+          ds_records_json = ?,
           created_at = ?,
           updated_at = ?,
           expires_at = ?,
@@ -258,6 +263,7 @@ export class SqliteDomainRepository implements DomainRepository {
       ["registrant_contact", "ALTER TABLE domains ADD COLUMN registrant_contact TEXT"],
       ["contacts_json", "ALTER TABLE domains ADD COLUMN contacts_json TEXT"],
       ["auth_info", "ALTER TABLE domains ADD COLUMN auth_info TEXT"],
+      ["ds_records_json", "ALTER TABLE domains ADD COLUMN ds_records_json TEXT"],
       ["updated_at", "ALTER TABLE domains ADD COLUMN updated_at TEXT"],
       ["transfer_json", "ALTER TABLE domains ADD COLUMN transfer_json TEXT"]
     ];
@@ -280,6 +286,7 @@ function domainValues(record: DomainRecord): [
   string,
   string | null,
   string,
+  string,
   string | null,
   string,
   string | null
@@ -293,6 +300,7 @@ function domainValues(record: DomainRecord): [
     record.registrantContact ?? null,
     JSON.stringify(record.contacts),
     record.authInfo ?? null,
+    JSON.stringify(record.dsRecords),
     record.createdAt,
     record.updatedAt ?? null,
     record.expiresAt,
@@ -310,6 +318,7 @@ function mapDomainRow(row: DomainRow): DomainRecord {
     registrantContact: row.registrant_contact ?? undefined,
     contacts: parseContacts(row.contacts_json),
     authInfo: row.auth_info ?? undefined,
+    dsRecords: parseDsRecords(row.ds_records_json),
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? undefined,
     expiresAt: row.expires_at,
@@ -323,7 +332,8 @@ function normalizeRecord(record: DomainRecord): DomainRecord {
     name: normalizeDomainName(record.name),
     statuses: normalizeStatuses(record.statuses ?? ["ok"]),
     nameservers: unique(record.nameservers ?? []),
-    contacts: record.contacts ?? []
+    contacts: record.contacts ?? [],
+    dsRecords: record.dsRecords ?? []
   };
 }
 
@@ -354,6 +364,31 @@ function parseContacts(value: string | null): DomainRecord["contacts"] {
       "type" in item &&
       typeof item.id === "string" &&
       (item.type === "admin" || item.type === "tech" || item.type === "billing")
+  );
+}
+
+function parseDsRecords(value: string | null): DomainRecord["dsRecords"] {
+  if (!value) {
+    return [];
+  }
+
+  const parsed = JSON.parse(value) as unknown;
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed.filter(
+    (item): item is DomainRecord["dsRecords"][number] =>
+      typeof item === "object" &&
+      item !== null &&
+      "keyTag" in item &&
+      "algorithm" in item &&
+      "digestType" in item &&
+      "digest" in item &&
+      typeof item.keyTag === "number" &&
+      typeof item.algorithm === "number" &&
+      typeof item.digestType === "number" &&
+      typeof item.digest === "string"
   );
 }
 
@@ -396,6 +431,27 @@ function updateContacts(
   }
 
   return [...contactMap.values()];
+}
+
+function updateDsRecords(
+  current: DomainRecord["dsRecords"],
+  toAdd: DomainRecord["dsRecords"] = [],
+  toRemove: DomainRecord["dsRecords"] = []
+): DomainRecord["dsRecords"] {
+  const removeSet = new Set(toRemove.map(dsKey));
+  const dsMap = new Map(
+    current.filter((record) => !removeSet.has(dsKey(record))).map((record) => [dsKey(record), record])
+  );
+
+  for (const record of toAdd) {
+    dsMap.set(dsKey(record), record);
+  }
+
+  return [...dsMap.values()];
+}
+
+function dsKey(record: DomainRecord["dsRecords"][number]): string {
+  return `${record.keyTag}:${record.algorithm}:${record.digestType}:${record.digest.toUpperCase()}`;
 }
 
 function normalizeStatuses(statuses: string[]): string[] {

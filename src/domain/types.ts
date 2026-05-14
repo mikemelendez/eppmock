@@ -7,6 +7,7 @@ export interface DomainRecord {
   registrantContact?: string;
   contacts: DomainContact[];
   authInfo?: string;
+  dsRecords: DomainDsRecord[];
   createdAt: string;
   updatedAt?: string;
   expiresAt: string;
@@ -21,6 +22,7 @@ export interface CreateDomainInput {
   registrantContact?: string;
   contacts?: DomainContact[];
   authInfo?: string;
+  dsRecords?: DomainDsRecord[];
 }
 
 export interface UpdateDomainInput {
@@ -32,6 +34,8 @@ export interface UpdateDomainInput {
   statusesToRemove?: string[];
   registrantContact?: string;
   authInfo?: string;
+  dsRecordsToAdd?: DomainDsRecord[];
+  dsRecordsToRemove?: DomainDsRecord[];
 }
 
 export interface DomainContact {
@@ -47,6 +51,13 @@ export interface DomainTransfer {
 }
 
 export type TransferStatus = DomainTransfer["status"];
+
+export interface DomainDsRecord {
+  keyTag: number;
+  algorithm: number;
+  digestType: number;
+  digest: string;
+}
 
 export interface DomainRepository {
   checkAvailability(names: string[]): Promise<Array<{ name: string; available: boolean }>>;

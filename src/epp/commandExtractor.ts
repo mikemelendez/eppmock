@@ -100,10 +100,18 @@ export function text(value: unknown): string | undefined {
     return value;
   }
 
+  if (typeof value === "number") {
+    return String(value);
+  }
+
   const valueNode = node(value);
 
   if (typeof valueNode?.["#text"] === "string") {
     return valueNode["#text"];
+  }
+
+  if (typeof valueNode?.["#text"] === "number") {
+    return String(valueNode["#text"]);
   }
 
   return undefined;

@@ -25,6 +25,16 @@ const domainFixtureSchema = z.object({
     )
     .default([]),
   authInfo: z.string().optional(),
+  dsRecords: z
+    .array(
+      z.object({
+        keyTag: z.number().int().positive(),
+        algorithm: z.number().int().positive(),
+        digestType: z.number().int().positive(),
+        digest: z.string().min(1)
+      })
+    )
+    .default([]),
   createdAt: z.string().datetime().default(() => new Date().toISOString()),
   updatedAt: z.string().datetime().optional(),
   expiresAt: z.string().datetime().default(() => {
@@ -169,6 +179,7 @@ function domainsToCsv(domains: DomainRecord[]): string {
     "registrantContact",
     "contacts",
     "authInfo",
+    "dsRecords",
     "createdAt",
     "updatedAt",
     "expiresAt",
@@ -183,6 +194,7 @@ function domainsToCsv(domains: DomainRecord[]): string {
     domain.registrantContact ?? "",
     JSON.stringify(domain.contacts),
     domain.authInfo ?? "",
+    JSON.stringify(domain.dsRecords),
     domain.createdAt,
     domain.updatedAt ?? "",
     domain.expiresAt,
@@ -208,7 +220,7 @@ function generateMelendezZone(domains: DomainRecord[], options: DnsZoneOptions):
   const delegations = domains
     .filter((domain) => domain.name.endsWith(".melendez"))
     .sort((a, b) => a.name.localeCompare(b.name))
-    .flatMap((domain, index) => domainDelegationRecords(domain, index));
+    .flatMap((domain, index) => domainDelegationRecords(domain, index, options));
 
   return [
     `$ORIGIN ${origin}`,
@@ -272,7 +284,7 @@ function keyTagFor(type: "KSK" | "ZSK", publicKey: string): number {
   return digest.readUInt16BE(0);
 }
 
-function domainDelegationRecords(domain: DomainRecord, index: number): string[] {
+function domainDelegationRecords(domain: DomainRecord, index: number, options: DnsZoneOptions): string[] {
   const label = domain.name.replace(/\.melendez$/, "");
   const nameservers = domain.nameservers.length
     ? domain.nameservers.map(ensureTrailingDot)
@@ -281,6 +293,16 @@ function domainDelegationRecords(domain: DomainRecord, index: number): string[] 
     `; ${domain.name}`,
     ...nameservers.map((nameserver) => `${label} IN NS ${nameserver}`)
   ];
+
+  if (options.dnssec) {
+    const dsRecords = domain.dsRecords.length ? domain.dsRecords : [syntheticDsRecord(domain, index)];
+    records.push(
+      ...dsRecords.map(
+        (record) =>
+          `${label} IN DS ${record.keyTag} ${record.algorithm} ${record.digestType} ${record.digest.toUpperCase()}`
+      )
+    );
+  }
 
   for (const [nameserverIndex, nameserver] of nameservers.entries()) {
     const glueOwner = inBailiwickOwner(nameserver);
@@ -292,6 +314,16 @@ function domainDelegationRecords(domain: DomainRecord, index: number): string[] 
 
   records.push("");
   return records;
+}
+
+function syntheticDsRecord(domain: DomainRecord, index: number): DomainRecord["dsRecords"][number] {
+  const digest = createHash("sha256").update(`${domain.name}:${index}`).digest("hex").toUpperCase();
+  return {
+    keyTag: 20000 + index,
+    algorithm: 13,
+    digestType: 2,
+    digest
+  };
 }
 
 function ensureTrailingDot(value: string): string {

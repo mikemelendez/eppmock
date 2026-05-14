@@ -11,6 +11,11 @@ const domainAttributes = {
   "@_xsi:schemaLocation": "urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd"
 };
 
+const secDnsAttributes = {
+  "@_xmlns:secDNS": "urn:ietf:params:xml:ns:secDNS-1.1",
+  "@_xsi:schemaLocation": "urn:ietf:params:xml:ns:secDNS-1.1 secDNS-1.1.xsd"
+};
+
 export function domainCheckResponse(
   results: Array<{ name: string; available: boolean }>,
   transactionId?: string
@@ -102,6 +107,19 @@ export function domainInfoResponse(domain: DomainRecord, transactionId?: string)
             "domain:exDate": domain.expiresAt
           }
         },
+        extension: domain.dsRecords.length
+          ? {
+              "secDNS:infData": {
+                ...secDnsAttributes,
+                "secDNS:dsData": domain.dsRecords.map((record) => ({
+                  "secDNS:keyTag": record.keyTag,
+                  "secDNS:alg": record.algorithm,
+                  "secDNS:digestType": record.digestType,
+                  "secDNS:digest": record.digest
+                }))
+              }
+            }
+          : undefined,
         trID: {
           clTRID: transactionId,
           svTRID: randomUUID()

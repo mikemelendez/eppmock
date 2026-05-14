@@ -33,7 +33,7 @@ export class DomainCommandHandler implements CommandHandler {
     }
 
     if ("create" in command) {
-      return this.create(command.create, context);
+      return this.create(command.create, context, node(command.extension));
     }
 
     if ("info" in command) {
@@ -45,7 +45,7 @@ export class DomainCommandHandler implements CommandHandler {
     }
 
     if ("update" in command) {
-      return this.update(command.update, context);
+      return this.update(command.update, context, node(command.extension));
     }
 
     if ("renew" in command) {
@@ -71,7 +71,11 @@ export class DomainCommandHandler implements CommandHandler {
     return domainCheckResponse(results, context.transactionId);
   }
 
-  private async create(value: unknown, context: CommandContext): Promise<string> {
+  private async create(
+    value: unknown,
+    context: CommandContext,
+    extension?: Record<string, unknown>
+  ): Promise<string> {
     const domainCreate = node(node(value)?.["domain:create"]);
     const name = text(domainCreate?.["domain:name"]);
     const period = parsePeriod(domainCreate?.["domain:period"]);
@@ -79,6 +83,7 @@ export class DomainCommandHandler implements CommandHandler {
     const registrantContact = text(domainCreate?.["domain:registrant"]);
     const contacts = parseContacts(domainCreate?.["domain:contact"]);
     const authInfo = parseAuthInfo(domainCreate?.["domain:authInfo"]);
+    const dsRecords = parseDsRecords(extension);
 
     if (!name || !context.session.clid) {
       return syntaxError(context.transactionId);
@@ -92,7 +97,8 @@ export class DomainCommandHandler implements CommandHandler {
         nameservers,
         registrantContact,
         contacts,
-        authInfo
+        authInfo,
+        dsRecords
       });
 
       return domainCreateResponse(domain, context.transactionId);
@@ -105,7 +111,11 @@ export class DomainCommandHandler implements CommandHandler {
     }
   }
 
-  private async update(value: unknown, context: CommandContext): Promise<string> {
+  private async update(
+    value: unknown,
+    context: CommandContext,
+    extension?: Record<string, unknown>
+  ): Promise<string> {
     const domainUpdate = node(node(value)?.["domain:update"]);
     const name = text(domainUpdate?.["domain:name"]);
 
@@ -122,7 +132,9 @@ export class DomainCommandHandler implements CommandHandler {
         statusesToAdd: parseStatuses(node(domainUpdate?.["domain:add"])?.["domain:status"]),
         statusesToRemove: parseStatuses(node(domainUpdate?.["domain:rem"])?.["domain:status"]),
         registrantContact: text(node(domainUpdate?.["domain:chg"])?.["domain:registrant"]),
-        authInfo: parseAuthInfo(node(domainUpdate?.["domain:chg"])?.["domain:authInfo"])
+        authInfo: parseAuthInfo(node(domainUpdate?.["domain:chg"])?.["domain:authInfo"]),
+        dsRecordsToAdd: parseDsRecords(extension),
+        dsRecordsToRemove: parseDsRecords(extension, "rem")
       });
 
       return commandCompleted(context.transactionId);
@@ -256,6 +268,54 @@ function parseStatuses(value: unknown): string[] {
 
 function parseAuthInfo(value: unknown): string | undefined {
   return text(node(value)?.["domain:pw"]);
+}
+
+function parseDsRecords(value: unknown, section: "add" | "rem" = "add"): Array<{
+  keyTag: number;
+  algorithm: number;
+  digestType: number;
+  digest: string;
+}> {
+  const root = node(value);
+  const secDnsCreate = prefixedNode(root, "create");
+  const secDnsUpdate = prefixedNode(root, "update");
+  const dsContainer =
+    secDnsCreate ?? (section === "add" ? prefixedNode(secDnsUpdate, "add") : prefixedNode(secDnsUpdate, "rem")) ?? root;
+
+  return asArray(prefixedValue(dsContainer, "dsData")).flatMap((entry) => {
+    const dsData = node(entry);
+    const keyTag = Number(text(prefixedValue(dsData, "keyTag")));
+    const algorithm = Number(text(prefixedValue(dsData, "alg")));
+    const digestType = Number(text(prefixedValue(dsData, "digestType")));
+    const digest = text(prefixedValue(dsData, "digest"));
+
+    if (
+      !Number.isInteger(keyTag) ||
+      !Number.isInteger(algorithm) ||
+      !Number.isInteger(digestType) ||
+      !digest
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        keyTag,
+        algorithm,
+        digestType,
+        digest: digest.toUpperCase()
+      }
+    ];
+  });
+}
+
+function prefixedNode(value: Record<string, unknown> | undefined, localName: string): Record<string, unknown> | undefined {
+  return node(prefixedValue(value, localName));
+}
+
+function prefixedValue(value: Record<string, unknown> | undefined, localName: string): unknown {
+  const key = Object.keys(value ?? {}).find((entry) => entry === localName || entry.endsWith(`:${localName}`));
+  return key ? value?.[key] : undefined;
 }
 
 function transferOperation(value: unknown): "request" | "approve" | "reject" | "cancel" | "query" {

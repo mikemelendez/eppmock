@@ -494,9 +494,9 @@ export function dashboardHtml(): string {
                 <summary>Supported Domain Commands</summary>
                 <ul>
                   <li>domain:check verifies availability.</li>
-                  <li>domain:create registers a domain with period, nameservers, contacts, and authInfo.</li>
+                  <li>domain:create registers a domain with period, nameservers, contacts, authInfo, and optional secDNS DS data.</li>
                   <li>domain:info returns status, registrar, contacts, nameservers, and dates.</li>
-                  <li>domain:update modifies nameservers, contacts, statuses, registrant, and authInfo.</li>
+                  <li>domain:update modifies nameservers, contacts, statuses, registrant, authInfo, and secDNS DS records.</li>
                   <li>domain:delete removes the domain.</li>
                   <li>domain:renew extends expiration.</li>
                   <li>domain:transfer supports request, query, approve, reject, and cancel.</li>
@@ -508,11 +508,11 @@ export function dashboardHtml(): string {
               </details>
               <details class="help-item">
                 <summary>Registry State and CSV</summary>
-                <p>The Registry State card shows persisted domains and recent EPP commands. Download CSV exports the full domain table for verification, including statuses, nameservers, contacts, authInfo, dates, and transfer state.</p>
+                <p>The Registry State card shows persisted domains and recent EPP commands. Download CSV exports the full domain table for verification, including statuses, nameservers, contacts, authInfo, DS records, dates, and transfer state.</p>
               </details>
               <details class="help-item">
                 <summary>DNS Zone Generator</summary>
-                <p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes NS delegations for every persisted .melendez domain, glue records for in-bailiwick nameservers, optional DNSSEC DNSKEY/DS records for KSK and ZSK, and configurable NSEC3PARAM values.</p>
+                <p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes NS delegations for every persisted .melendez domain, DS records from secDNS data, glue records for in-bailiwick nameservers, optional DNSSEC DNSKEY records for KSK and ZSK, and configurable NSEC3PARAM values.</p>
               </details>
               <details class="help-item">
                 <summary>Protected Reset</summary>
@@ -598,6 +598,16 @@ export function dashboardHtml(): string {
         </domain:authInfo>
       </domain:create>
     </create>
+    <extension>
+      <secDNS:create xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1">
+        <secDNS:dsData>
+          <secDNS:keyTag>12345</secDNS:keyTag>
+          <secDNS:alg>13</secDNS:alg>
+          <secDNS:digestType>2</secDNS:digestType>
+          <secDNS:digest>0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF</secDNS:digest>
+        </secDNS:dsData>
+      </secDNS:create>
+    </extension>
     <clTRID>dashboard-create</clTRID>
   </command>
 </epp>\`,
@@ -638,6 +648,26 @@ export function dashboardHtml(): string {
         </domain:chg>
       </domain:update>
     </update>
+    <extension>
+      <secDNS:update xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1">
+        <secDNS:add>
+          <secDNS:dsData>
+            <secDNS:keyTag>54321</secDNS:keyTag>
+            <secDNS:alg>13</secDNS:alg>
+            <secDNS:digestType>2</secDNS:digestType>
+            <secDNS:digest>FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210</secDNS:digest>
+          </secDNS:dsData>
+        </secDNS:add>
+        <secDNS:rem>
+          <secDNS:dsData>
+            <secDNS:keyTag>12345</secDNS:keyTag>
+            <secDNS:alg>13</secDNS:alg>
+            <secDNS:digestType>2</secDNS:digestType>
+            <secDNS:digest>0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF</secDNS:digest>
+          </secDNS:dsData>
+        </secDNS:rem>
+      </secDNS:update>
+    </extension>
     <clTRID>dashboard-update</clTRID>
   </command>
 </epp>\`,
@@ -830,7 +860,7 @@ export function dashboardHtml(): string {
 
       const domainPayload = await domainResponse.json();
       domains.innerHTML = domainPayload.length
-        ? domainPayload.map((domain) => \`<div class="pill-row"><span>\${escapeHtml(domain.name)}</span><span>\${escapeHtml(domain.statuses.join(", "))}</span></div>\`).join("")
+        ? domainPayload.map((domain) => \`<div class="pill-row"><span>\${escapeHtml(domain.name)}</span><span>\${escapeHtml(domain.statuses.join(", "))}\${domain.dsRecords?.length ? " · DS " + domain.dsRecords.length : ""}</span></div>\`).join("")
         : \`<div class="pill-row"><span>No domains</span><span>empty registry</span></div>\`;
 
       const commandPayload = await commandResponse.json();
