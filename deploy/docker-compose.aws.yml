@@ -13,6 +13,7 @@ services:
       CONTROL_PORT: 8080
       STORAGE_MODE: sqlite
       SQLITE_PATH: /app/data/epp-testing-tool.sqlite
+      DNSSEC_KEY_PATH: /app/data/dnssec-keys.json
       GREETING_SERVER_ID: epp-testing-tool
     volumes:
       - epp_data:/app/data

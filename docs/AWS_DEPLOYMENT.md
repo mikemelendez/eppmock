@@ -64,9 +64,14 @@ AWS_EC2_SSH_PORT=22
 RESET_HTTP_USER=admin
 RESET_HTTP_PASSWORD=<strong-password>
 EPP_USERS=[{"clid":"melendez-admin","password":"..."}]
+DNSSEC_KEY_PATH=/app/data/dnssec-keys.json
 ```
 
-`EPP_USERS` is optional. If omitted, the app uses the default testing users.
+`RESET_HTTP_PASSWORD` and `EPP_USERS` are required in production. The container runs with
+`NODE_ENV=production`, and startup fails if the reset password is still a default value or if
+`EPP_USERS` is omitted.
+
+`DNSSEC_KEY_PATH` should point inside `/app/data` so KSK/ZSK material survives container rebuilds.
 
 ## Deployment
 
@@ -84,6 +89,52 @@ It will:
 ```bash
 docker compose -f deploy/docker-compose.aws.yml up -d --build
 ```
+
+## Persistence, Backups, and Rollback
+
+SQLite registry data and DNSSEC key material live in the `epp_data` Docker volume:
+
+```text
+/app/data/epp-testing-tool.sqlite
+/app/data/dnssec-keys.json
+```
+
+Create a backup before deployments or key renewals:
+
+```bash
+docker run --rm -v epp-testing-tool_epp_data:/data -v "$PWD":/backup alpine \
+  sh -c 'cd /data && tar czf /backup/epp-data-$(date +%Y%m%d%H%M%S).tgz .'
+```
+
+Restore a backup only after stopping the app:
+
+```bash
+docker compose -f deploy/docker-compose.aws.yml down
+docker run --rm -v epp-testing-tool_epp_data:/data -v "$PWD":/backup alpine \
+  sh -c 'cd /data && rm -rf ./* && tar xzf /backup/epp-data-YYYYMMDDHHMMSS.tgz'
+docker compose -f deploy/docker-compose.aws.yml up -d --build
+```
+
+Rollback to a previous Git revision:
+
+```bash
+cd /opt/epp-testing-tool
+git fetch origin
+git checkout <previous-commit-sha>
+docker compose -f deploy/docker-compose.aws.yml up -d --build
+```
+
+Do not delete `dnssec-keys.json` unless you intentionally want to publish a new DNSSEC key set.
+Deleting it changes the generated DNSKEY and parent DS values.
+
+## DNSSEC Operations
+
+The zone generator signs the `.melendez` zone with persisted ECDSA P-256 KSK/ZSK material. It
+emits DNSKEY, DS, RRSIG, NSEC3, and NSEC3PARAM records when DNSSEC is enabled.
+
+Use `Generate keys` for normal operation. It reuses existing keys from `DNSSEC_KEY_PATH`. Use
+`Renew keys` only when you intentionally want to rotate the ZSK and refresh the persisted key
+metadata. Back up the `epp_data` volume before renewal.
 
 ## Public URLs
 

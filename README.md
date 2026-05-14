@@ -11,6 +11,7 @@ The project separates four responsibilities:
 - `src/domain/sqliteDomainRepository.ts`: persistent SQLite storage.
 - `src/domain/inMemoryDomainRepository.ts`: in-memory storage for quick tests.
 - `src/control`: HTTP API to manage fixtures, reset state, and inspect received commands.
+- `src/dns`: `.melendez` zone generation, DNSSEC key storage, and signing.
 
 The EPP protocol does not depend on the storage layer. To move from SQLite to PostgreSQL later, add an implementation such as `PostgresDomainRepository` that satisfies `DomainRepository` and wire it in `src/index.ts`.
 
@@ -19,9 +20,9 @@ The EPP protocol does not depend on the storage layer. To move from SQLite to Po
 - `login`
 - `logout`
 - `domain:check`
-- `domain:create`
-- `domain:info`
-- `domain:update`
+- `domain:create`, including optional `secDNS` DS data
+- `domain:info`, including `secDNS:infData` when DS records exist
+- `domain:update`, including `secDNS` DS add/remove
 - `domain:delete`
 - `domain:renew`
 - `domain:transfer` with `request`, `approve`, `reject`, `cancel`, and `query`
@@ -51,6 +52,9 @@ Available variables:
 - `RESET_HTTP_PASSWORD`, default `reset-secret`
 - `STORAGE_MODE`, default `sqlite`, values: `sqlite` or `memory`
 - `SQLITE_PATH`, default `data/epp-testing-tool.sqlite`
+- `DNSSEC_KEY_PATH`, default `data/dnssec-keys.json`
+
+When `NODE_ENV=production`, `RESET_HTTP_PASSWORD` must be changed from defaults and `EPP_USERS` must be explicitly set.
 
 Default EPP login users:
 
@@ -88,7 +92,7 @@ curl http://127.0.0.1:8080/commands
 ```
 
 The dashboard also includes a **Download CSV** button for exporting the full domain table.
-It also includes a **DNS Zone** section for generating and downloading a BIND-style `.melendez` TLD zone file with optional DNSSEC KSK/ZSK records, key renewal mode, DS records, and NSEC3 parameters.
+It also includes a **DNS Zone** section for generating and downloading a BIND-style `.melendez` TLD zone file with DNSSEC KSK/ZSK records, DS records, RRSIG signatures, NSEC3 records, key renewal mode, and NSEC3 parameters.
 The **Help** section documents the available site features and supported EPP commands.
 
 You can also send EPP XML over HTTP:
@@ -128,6 +132,14 @@ curl -X POST http://127.0.0.1:8080/admin/domains/reset \
 
 The dashboard **Reset** button prompts for the same HTTP Basic Auth credentials.
 
+## Testing
+
+```bash
+npm test
+```
+
+The test suite covers production config validation, EPP `secDNS` DS create/update/info behavior, CSV export, HTTP zone downloads, and signed `.melendez` zone generation.
+
 ## Persistence
 
 Persistent mode uses SQLite:
@@ -143,6 +155,8 @@ STORAGE_MODE=memory npm run dev
 ```
 
 The `POST /reset` endpoint deletes persisted domains and loads the submitted fixtures, so use it carefully if you want to keep existing data.
+
+DNSSEC KSK/ZSK material is stored at `DNSSEC_KEY_PATH`. Keep that file in persistent storage and back it up with the SQLite database.
 
 ## AWS Deployment
 

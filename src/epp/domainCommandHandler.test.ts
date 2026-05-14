@@ -1,0 +1,119 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { DomainService } from "../domain/domainService.js";
+import { InMemoryDomainRepository } from "../domain/inMemoryDomainRepository.js";
+import { parseEppXml } from "./xml.js";
+import { DomainCommandHandler } from "./domainCommandHandler.js";
+import type { CommandContext } from "./types.js";
+
+test("persists secDNS DS records from create and update commands", async () => {
+  const repository = new InMemoryDomainRepository();
+  const service = new DomainService(repository);
+  const handler = new DomainCommandHandler(service);
+  const context: CommandContext = {
+    session: {
+      id: "test-session",
+      authenticated: true,
+      clid: "melendez-admin",
+      connectedAt: new Date(),
+      lastCommandAt: new Date()
+    },
+    rawXml: ""
+  };
+
+  await handler.handle(parseEppXml(createXml("12345", "AAAAAAAAAAAAAAAA")), context);
+  let domain = await service.findByName("signed.melendez");
+  assert.equal(domain?.dsRecords.length, 1);
+  assert.deepEqual(domain?.dsRecords[0], {
+    keyTag: 12345,
+    algorithm: 13,
+    digestType: 2,
+    digest: "AAAAAAAAAAAAAAAA"
+  });
+
+  await handler.handle(parseEppXml(updateXml()), context);
+  domain = await service.findByName("signed.melendez");
+  assert.equal(domain?.dsRecords.length, 1);
+  assert.deepEqual(domain?.dsRecords[0], {
+    keyTag: 54321,
+    algorithm: 13,
+    digestType: 2,
+    digest: "BBBBBBBBBBBBBBBB"
+  });
+
+  const response = await handler.handle(parseEppXml(infoXml()), context);
+  assert.match(response, /<secDNS:infData/);
+  assert.match(response, /<secDNS:keyTag>54321<\/secDNS:keyTag>/);
+  assert.match(response, /<secDNS:digest>BBBBBBBBBBBBBBBB<\/secDNS:digest>/);
+});
+
+function createXml(keyTag: string, digest: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <create>
+      <domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>signed.melendez</domain:name>
+        <domain:period unit="y">1</domain:period>
+        <domain:authInfo><domain:pw>secret</domain:pw></domain:authInfo>
+      </domain:create>
+    </create>
+    <extension>
+      <secDNS:create xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1">
+        <secDNS:dsData>
+          <secDNS:keyTag>${keyTag}</secDNS:keyTag>
+          <secDNS:alg>13</secDNS:alg>
+          <secDNS:digestType>2</secDNS:digestType>
+          <secDNS:digest>${digest}</secDNS:digest>
+        </secDNS:dsData>
+      </secDNS:create>
+    </extension>
+  </command>
+</epp>`;
+}
+
+function updateXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <update>
+      <domain:update xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>signed.melendez</domain:name>
+      </domain:update>
+    </update>
+    <extension>
+      <secDNS:update xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1">
+        <secDNS:add>
+          <secDNS:dsData>
+            <secDNS:keyTag>54321</secDNS:keyTag>
+            <secDNS:alg>13</secDNS:alg>
+            <secDNS:digestType>2</secDNS:digestType>
+            <secDNS:digest>BBBBBBBBBBBBBBBB</secDNS:digest>
+          </secDNS:dsData>
+        </secDNS:add>
+        <secDNS:rem>
+          <secDNS:dsData>
+            <secDNS:keyTag>12345</secDNS:keyTag>
+            <secDNS:alg>13</secDNS:alg>
+            <secDNS:digestType>2</secDNS:digestType>
+            <secDNS:digest>AAAAAAAAAAAAAAAA</secDNS:digest>
+          </secDNS:dsData>
+        </secDNS:rem>
+      </secDNS:update>
+    </extension>
+  </command>
+</epp>`;
+}
+
+function infoXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <info>
+      <domain:info xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>signed.melendez</domain:name>
+      </domain:info>
+    </info>
+  </command>
+</epp>`;
+}

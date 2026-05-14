@@ -433,7 +433,7 @@ export function dashboardHtml(): string {
           <div class="card-head">
             <div>
               <h2>DNS Zone</h2>
-              <p class="muted">Generate a BIND-style zone file for the entire .melendez TLD.</p>
+              <p class="muted">Generate a BIND-style signed zone file for the entire .melendez TLD.</p>
             </div>
             <div class="actions" style="margin-top: 0">
               <button id="downloadZone">Download</button>
@@ -512,7 +512,7 @@ export function dashboardHtml(): string {
               </details>
               <details class="help-item">
                 <summary>DNS Zone Generator</summary>
-                <p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes NS delegations for every persisted .melendez domain, DS records from secDNS data, glue records for in-bailiwick nameservers, optional DNSSEC DNSKEY records for KSK and ZSK, and configurable NSEC3PARAM values.</p>
+                <p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes NS delegations for every persisted .melendez domain, DS records from secDNS data, glue records for in-bailiwick nameservers, persisted KSK/ZSK DNSKEY material, RRSIG signatures, NSEC3 records, and configurable NSEC3PARAM values.</p>
               </details>
               <details class="help-item">
                 <summary>Protected Reset</summary>

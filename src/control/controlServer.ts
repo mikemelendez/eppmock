@@ -1,12 +1,14 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import cors from "@fastify/cors";
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { AppConfig } from "../config.js";
 import type { DomainRecord } from "../domain/types.js";
 import type { DomainService } from "../domain/domainService.js";
 import type { CommandLogRepository } from "../epp/commandLogRepository.js";
 import { sendEppRequest } from "../epp/eppClient.js";
+import { generateMelendezZone } from "../dns/melendezZone.js";
+import type { DnsZoneOptions } from "../dns/types.js";
 import { dashboardHtml } from "./dashboardHtml.js";
 
 const domainFixtureSchema = z.object({
@@ -77,13 +79,24 @@ const dnsZoneQuerySchema = z.object({
     .default("A1B2C3D4")
 });
 
-type DnsZoneOptions = Omit<z.infer<typeof dnsZoneQuerySchema>, "download">;
-
 export async function startControlServer(
   config: AppConfig,
   domains: DomainService,
   commandLog: CommandLogRepository
 ): Promise<void> {
+  const app = await buildControlApp(config, domains, commandLog);
+
+  await app.listen({
+    host: config.controlHost,
+    port: config.controlPort
+  });
+}
+
+export async function buildControlApp(
+  config: AppConfig,
+  domains: DomainService,
+  commandLog: CommandLogRepository
+): Promise<FastifyInstance> {
   const app = Fastify({ logger: true });
 
   await app.register(cors, { origin: true });
@@ -111,7 +124,9 @@ export async function startControlServer(
 
   app.get("/dns/zone", async (request, reply) => {
     const query = dnsZoneQuerySchema.parse(request.query);
-    const zone = generateMelendezZone(await domains.list(), query);
+    const zone = generateMelendezZone(await domains.list(), query satisfies DnsZoneOptions, {
+      keyPath: config.dnssecKeyPath
+    });
     const response = reply.type("text/plain; charset=utf-8");
 
     if (query.download) {
@@ -163,10 +178,7 @@ export async function startControlServer(
     }
   });
 
-  await app.listen({
-    host: config.controlHost,
-    port: config.controlPort
-  });
+  return app;
 }
 
 function domainsToCsv(domains: DomainRecord[]): string {
@@ -210,142 +222,6 @@ function csvCell(value: string): string {
 
 function dateStamp(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-function generateMelendezZone(domains: DomainRecord[], options: DnsZoneOptions): string {
-  const origin = "melendez.";
-  const tldNameservers = ["ns1.melendez.", "ns2.melendez."];
-  const serial = zoneSerial();
-  const dnssecRecords = options.dnssec ? dnssecZoneRecords(options) : [];
-  const delegations = domains
-    .filter((domain) => domain.name.endsWith(".melendez"))
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .flatMap((domain, index) => domainDelegationRecords(domain, index, options));
-
-  return [
-    `$ORIGIN ${origin}`,
-    "$TTL 3600",
-    `@ IN SOA ${tldNameservers[0]} hostmaster.${origin} (`,
-    `  ${serial} ; serial`,
-    "  3600       ; refresh",
-    "  900        ; retry",
-    "  1209600    ; expire",
-    "  3600       ; minimum",
-    ")",
-    "",
-    ...tldNameservers.map((nameserver) => `@ IN NS ${nameserver}`),
-    "",
-    "ns1 IN A 192.0.2.10",
-    "ns2 IN A 192.0.2.11",
-    "",
-    ...dnssecRecords,
-    "; Delegated .melendez domains",
-    ...(delegations.length ? delegations : ["; No registered .melendez domains found"]),
-    ""
-  ].join("\n");
-}
-
-function dnssecZoneRecords(options: DnsZoneOptions): string[] {
-  const ksk = dnsKey("KSK", options.keyAction);
-  const zsk = dnsKey("ZSK", options.keyAction);
-  const salt = options.nsec3Salt === "-" ? "-" : options.nsec3Salt.toUpperCase();
-
-  return [
-    `; DNSSEC ${options.keyAction === "renew" ? "renewal" : "generation"} metadata`,
-    "; KSK: Key Signing Key, ZSK: Zone Signing Key",
-    `@ IN DNSKEY 257 3 13 ${ksk.publicKey}`,
-    `@ IN DNSKEY 256 3 13 ${zsk.publicKey}`,
-    `@ IN DS ${ksk.keyTag} 13 2 ${dnsDigest(ksk.publicKey)}`,
-    `@ IN NSEC3PARAM ${options.nsec3Hash} ${options.nsec3Flags} ${options.nsec3Iterations} ${salt}`,
-    `; KSK key tag: ${ksk.keyTag}`,
-    `; ZSK key tag: ${zsk.keyTag}`,
-    ""
-  ];
-}
-
-function dnsKey(type: "KSK" | "ZSK", action: "generate" | "renew"): { publicKey: string; keyTag: number } {
-  const seed =
-    action === "renew"
-      ? randomBytes(48)
-      : createHash("sha512").update(`melendez-${type.toLowerCase()}-stable-key`).digest();
-  const publicKey = seed.toString("base64");
-  return {
-    publicKey,
-    keyTag: keyTagFor(type, publicKey)
-  };
-}
-
-function dnsDigest(publicKey: string): string {
-  return createHash("sha256").update(`melendez.${publicKey}`).digest("hex").toUpperCase();
-}
-
-function keyTagFor(type: "KSK" | "ZSK", publicKey: string): number {
-  const digest = createHash("sha256").update(`${type}:${publicKey}`).digest();
-  return digest.readUInt16BE(0);
-}
-
-function domainDelegationRecords(domain: DomainRecord, index: number, options: DnsZoneOptions): string[] {
-  const label = domain.name.replace(/\.melendez$/, "");
-  const nameservers = domain.nameservers.length
-    ? domain.nameservers.map(ensureTrailingDot)
-    : [`ns1.${domain.name}.`, `ns2.${domain.name}.`];
-  const records = [
-    `; ${domain.name}`,
-    ...nameservers.map((nameserver) => `${label} IN NS ${nameserver}`)
-  ];
-
-  if (options.dnssec) {
-    const dsRecords = domain.dsRecords.length ? domain.dsRecords : [syntheticDsRecord(domain, index)];
-    records.push(
-      ...dsRecords.map(
-        (record) =>
-          `${label} IN DS ${record.keyTag} ${record.algorithm} ${record.digestType} ${record.digest.toUpperCase()}`
-      )
-    );
-  }
-
-  for (const [nameserverIndex, nameserver] of nameservers.entries()) {
-    const glueOwner = inBailiwickOwner(nameserver);
-
-    if (glueOwner) {
-      records.push(`${glueOwner} IN A 192.0.2.${100 + index * 2 + nameserverIndex}`);
-    }
-  }
-
-  records.push("");
-  return records;
-}
-
-function syntheticDsRecord(domain: DomainRecord, index: number): DomainRecord["dsRecords"][number] {
-  const digest = createHash("sha256").update(`${domain.name}:${index}`).digest("hex").toUpperCase();
-  return {
-    keyTag: 20000 + index,
-    algorithm: 13,
-    digestType: 2,
-    digest
-  };
-}
-
-function ensureTrailingDot(value: string): string {
-  return value.endsWith(".") ? value : `${value}.`;
-}
-
-function inBailiwickOwner(nameserver: string): string | null {
-  const normalized = nameserver.toLowerCase();
-
-  if (!normalized.endsWith(".melendez.")) {
-    return null;
-  }
-
-  return normalized.replace(/\.melendez\.$/, "");
-}
-
-function zoneSerial(): string {
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(now.getUTCDate()).padStart(2, "0");
-  return `${year}${month}${day}01`;
 }
 
 function isAuthorizedReset(authorization: string | undefined, config: AppConfig): boolean {

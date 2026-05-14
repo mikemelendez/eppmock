@@ -23,13 +23,14 @@ const configSchema = z.object({
   resetHttpUser: z.string().default("admin"),
   resetHttpPassword: z.string().default("reset-secret"),
   storageMode: z.enum(["memory", "sqlite"]).default("sqlite"),
-  sqlitePath: z.string().default("data/epp-testing-tool.sqlite")
+  sqlitePath: z.string().default("data/epp-testing-tool.sqlite"),
+  dnssecKeyPath: z.string().default("data/dnssec-keys.json")
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
 
 export function loadConfig(env = process.env): AppConfig {
-  return configSchema.parse({
+  const config = configSchema.parse({
     eppHost: env.EPP_HOST,
     eppPort: env.EPP_PORT,
     controlHost: env.CONTROL_HOST,
@@ -39,8 +40,12 @@ export function loadConfig(env = process.env): AppConfig {
     resetHttpUser: env.RESET_HTTP_USER,
     resetHttpPassword: env.RESET_HTTP_PASSWORD,
     storageMode: env.STORAGE_MODE,
-    sqlitePath: env.SQLITE_PATH
+    sqlitePath: env.SQLITE_PATH,
+    dnssecKeyPath: env.DNSSEC_KEY_PATH
   });
+
+  validateProductionConfig(config, env);
+  return config;
 }
 
 function loadAuthUsers(env: NodeJS.ProcessEnv): AuthUser[] {
@@ -59,4 +64,18 @@ function loadAuthUsers(env: NodeJS.ProcessEnv): AuthUser[] {
   }
 
   return defaultAuthUsers;
+}
+
+function validateProductionConfig(config: AppConfig, env: NodeJS.ProcessEnv): void {
+  if (env.NODE_ENV !== "production") {
+    return;
+  }
+
+  if (config.resetHttpPassword === "reset-secret" || config.resetHttpPassword === "change-me") {
+    throw new Error("RESET_HTTP_PASSWORD must be changed before running in production");
+  }
+
+  if (!env.EPP_USERS) {
+    throw new Error("EPP_USERS must be set before running in production");
+  }
 }
