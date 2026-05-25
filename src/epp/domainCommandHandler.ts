@@ -13,7 +13,7 @@ import {
   objectExists,
   objectNotAuthorized
 } from "./domainResponses.js";
-import { getCommand, node, stringValues, text } from "./commandExtractor.js";
+import { childNode, childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
 import { commandCompleted, syntaxError } from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
 import { asArray } from "./xml.js";
@@ -60,8 +60,8 @@ export class DomainCommandHandler implements CommandHandler {
   }
 
   private async check(value: unknown, context: CommandContext): Promise<string> {
-    const domainCheck = node(node(value)?.["domain:check"]);
-    const names = stringValues(domainCheck?.["domain:name"]);
+    const domainCheck = childNode(value, "check");
+    const names = stringValues(childValue(domainCheck, "name"));
 
     if (names.length === 0) {
       return syntaxError(context.transactionId);
@@ -76,13 +76,13 @@ export class DomainCommandHandler implements CommandHandler {
     context: CommandContext,
     extension?: Record<string, unknown>
   ): Promise<string> {
-    const domainCreate = node(node(value)?.["domain:create"]);
-    const name = text(domainCreate?.["domain:name"]);
-    const period = parsePeriod(domainCreate?.["domain:period"]);
-    const nameservers = parseNameservers(domainCreate?.["domain:ns"]);
-    const registrantContact = text(domainCreate?.["domain:registrant"]);
-    const contacts = parseContacts(domainCreate?.["domain:contact"]);
-    const authInfo = parseAuthInfo(domainCreate?.["domain:authInfo"]);
+    const domainCreate = childNode(value, "create");
+    const name = text(childValue(domainCreate, "name"));
+    const period = parsePeriod(childValue(domainCreate, "period"));
+    const nameservers = parseNameservers(childValue(domainCreate, "ns"));
+    const registrantContact = text(childValue(domainCreate, "registrant"));
+    const contacts = parseContacts(childValue(domainCreate, "contact"));
+    const authInfo = parseAuthInfo(childValue(domainCreate, "authInfo"));
     const dsRecords = parseDsRecords(extension);
 
     if (!name || !context.session.clid) {
@@ -116,8 +116,8 @@ export class DomainCommandHandler implements CommandHandler {
     context: CommandContext,
     extension?: Record<string, unknown>
   ): Promise<string> {
-    const domainUpdate = node(node(value)?.["domain:update"]);
-    const name = text(domainUpdate?.["domain:name"]);
+    const domainUpdate = childNode(value, "update");
+    const name = text(childValue(domainUpdate, "name"));
 
     if (!name || !context.session.clid) {
       return syntaxError(context.transactionId);
@@ -125,14 +125,14 @@ export class DomainCommandHandler implements CommandHandler {
 
     try {
       await this.domains.update(name, context.session.clid, {
-        nameserversToAdd: parseNameservers(node(domainUpdate?.["domain:add"])?.["domain:ns"]),
-        nameserversToRemove: parseNameservers(node(domainUpdate?.["domain:rem"])?.["domain:ns"]),
-        contactsToAdd: parseContacts(node(domainUpdate?.["domain:add"])?.["domain:contact"]),
-        contactsToRemove: parseContacts(node(domainUpdate?.["domain:rem"])?.["domain:contact"]),
-        statusesToAdd: parseStatuses(node(domainUpdate?.["domain:add"])?.["domain:status"]),
-        statusesToRemove: parseStatuses(node(domainUpdate?.["domain:rem"])?.["domain:status"]),
-        registrantContact: text(node(domainUpdate?.["domain:chg"])?.["domain:registrant"]),
-        authInfo: parseAuthInfo(node(domainUpdate?.["domain:chg"])?.["domain:authInfo"]),
+        nameserversToAdd: parseNameservers(childValue(childNode(domainUpdate, "add"), "ns")),
+        nameserversToRemove: parseNameservers(childValue(childNode(domainUpdate, "rem"), "ns")),
+        contactsToAdd: parseContacts(childValue(childNode(domainUpdate, "add"), "contact")),
+        contactsToRemove: parseContacts(childValue(childNode(domainUpdate, "rem"), "contact")),
+        statusesToAdd: parseStatuses(childValue(childNode(domainUpdate, "add"), "status")),
+        statusesToRemove: parseStatuses(childValue(childNode(domainUpdate, "rem"), "status")),
+        registrantContact: text(childValue(childNode(domainUpdate, "chg"), "registrant")),
+        authInfo: parseAuthInfo(childValue(childNode(domainUpdate, "chg"), "authInfo")),
         dsRecordsToAdd: parseDsRecords(extension),
         dsRecordsToRemove: parseDsRecords(extension, "rem")
       });
@@ -148,8 +148,8 @@ export class DomainCommandHandler implements CommandHandler {
   }
 
   private async info(value: unknown, context: CommandContext): Promise<string> {
-    const domainInfo = node(node(value)?.["domain:info"]);
-    const name = text(domainInfo?.["domain:name"]);
+    const domainInfo = childNode(value, "info");
+    const name = text(childValue(domainInfo, "name"));
 
     if (!name) {
       return syntaxError(context.transactionId);
@@ -165,8 +165,8 @@ export class DomainCommandHandler implements CommandHandler {
   }
 
   private async delete(value: unknown, context: CommandContext): Promise<string> {
-    const domainDelete = node(node(value)?.["domain:delete"]);
-    const name = text(domainDelete?.["domain:name"]);
+    const domainDelete = childNode(value, "delete");
+    const name = text(childValue(domainDelete, "name"));
 
     if (!name || !context.session.clid) {
       return syntaxError(context.transactionId);
@@ -185,9 +185,9 @@ export class DomainCommandHandler implements CommandHandler {
   }
 
   private async renew(value: unknown, context: CommandContext): Promise<string> {
-    const domainRenew = node(node(value)?.["domain:renew"]);
-    const name = text(domainRenew?.["domain:name"]);
-    const period = parsePeriod(domainRenew?.["domain:period"]);
+    const domainRenew = childNode(value, "renew");
+    const name = text(childValue(domainRenew, "name"));
+    const period = parsePeriod(childValue(domainRenew, "period"));
 
     if (!name || !context.session.clid) {
       return syntaxError(context.transactionId);
@@ -208,8 +208,8 @@ export class DomainCommandHandler implements CommandHandler {
   private async transfer(value: unknown, context: CommandContext): Promise<string> {
     const transferNode = node(value);
     const operation = transferOperation(transferNode?.["@_op"]);
-    const domainTransfer = node(transferNode?.["domain:transfer"]);
-    const name = text(domainTransfer?.["domain:name"]);
+    const domainTransfer = childNode(transferNode, "transfer");
+    const name = text(childValue(domainTransfer, "name"));
 
     if (!name || !context.session.clid) {
       return syntaxError(context.transactionId);
@@ -243,7 +243,7 @@ function parsePeriod(value: unknown): number | undefined {
 
 function parseNameservers(value: unknown): string[] {
   const ns = node(value);
-  return stringValues(ns?.["domain:hostObj"]);
+  return stringValues(childValue(ns, "hostObj"));
 }
 
 function parseContacts(value: unknown): Array<{ type: "admin" | "tech" | "billing"; id: string }> {
@@ -267,7 +267,7 @@ function parseStatuses(value: unknown): string[] {
 }
 
 function parseAuthInfo(value: unknown): string | undefined {
-  return text(node(value)?.["domain:pw"]);
+  return text(childValue(value, "pw"));
 }
 
 function parseDsRecords(value: unknown, section: "add" | "rem" = "add"): Array<{

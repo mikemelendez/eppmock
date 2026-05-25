@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config.js";
-import { node } from "./commandExtractor.js";
+import { hasChild, node } from "./commandExtractor.js";
 import { greeting, resultResponse } from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
 
@@ -9,7 +9,7 @@ export class SystemCommandHandler implements CommandHandler {
   async handle(document: Record<string, unknown>, context: CommandContext): Promise<string> {
     const epp = node(document.epp);
 
-    if (epp && "hello" in epp) {
+    if (epp && (hasChild(epp, "hello") || hasChild(node(epp.command), "hello"))) {
       return greeting(this.config.greetingServerId);
     }
 

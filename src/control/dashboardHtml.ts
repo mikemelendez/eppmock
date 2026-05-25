@@ -781,7 +781,7 @@ export function dashboardHtml(): string {
             <span>\${frame.type}</span>
             <span class="frame-meta">
               <span class="status-badge \${status.className}">\${status.label}</span>
-              <span>\${new Date().toLocaleTimeString()}</span>
+              <span>\${formatDateTime(new Date())}</span>
             </span>
           </div>
           <pre>\${escapeHtml(prettyXml(frame.xml))}</pre>
@@ -865,8 +865,19 @@ export function dashboardHtml(): string {
 
       const commandPayload = await commandResponse.json();
       commands.innerHTML = commandPayload.length
-        ? commandPayload.map((command) => \`<div class="pill-row"><span>\${escapeHtml(command.commandName)}</span><span>\${new Date(command.createdAt).toLocaleTimeString()}</span></div>\`).join("")
+        ? commandPayload.map((command) => \`<div class="pill-row"><span>\${escapeHtml(command.commandName)}</span><span>\${formatDateTime(command.createdAt)}</span></div>\`).join("")
         : \`<div class="pill-row"><span>No commands</span><span>no activity</span></div>\`;
+    }
+
+    function formatDateTime(value) {
+      return new Date(value).toLocaleString(undefined, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
     }
 
     async function resetState() {
