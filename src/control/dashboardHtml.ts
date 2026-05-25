@@ -512,7 +512,11 @@ export function dashboardHtml(): string {
               </details>
               <details class="help-item">
                 <summary>WHOIS</summary>
-                <p>WHOIS is available on TCP port 43. Query with a plain domain line, for example: printf "example.melendez\\r\\n" | nc eppmock.melendez.mx 43. IDN queries are accepted as Unicode or punycode.</p>
+                <p>WHOIS is available on TCP port 43. Query with a plain domain line.</p>
+                <ul>
+                  <li>macOS/Linux: <code>printf "example.melendez\\r\\n" | nc eppmock.melendez.mx 43</code></li>
+                  <li>Windows PowerShell: <code>"example.melendez\`r\`n" | nc eppmock.melendez.mx 43</code></li>
+                </ul>
               </details>
               <details class="help-item">
                 <summary>DNS Zone Generator</summary>
