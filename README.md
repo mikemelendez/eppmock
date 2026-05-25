@@ -12,6 +12,7 @@ The project separates four responsibilities:
 - `src/domain/inMemoryDomainRepository.ts`: in-memory storage for quick tests.
 - `src/control`: HTTP API to manage fixtures, reset state, and inspect received commands.
 - `src/dns`: `.melendez` zone generation, DNSSEC key storage, and signing.
+- `src/whois`: TCP WHOIS service for registered `.melendez` domains.
 
 The EPP protocol does not depend on the storage layer. To move from SQLite to PostgreSQL later, add an implementation such as `PostgresDomainRepository` that satisfies `DomainRepository` and wire it in `src/index.ts`.
 
@@ -37,15 +38,20 @@ Domain records support nameservers, registrant contact, admin/tech/billing conta
 - `pendingDelete`
 - `ok`
 
+The registry accepts only second-level `.melendez` domains. Unicode IDNs are accepted and stored canonically as punycode, for example `café.melendez` is stored as `xn--caf-dma.melendez`.
+
 ## Configuration
 
 Available variables:
 
 - `EPP_HOST`, default `127.0.0.1`
 - `EPP_PORT`, default `7000`
+- `WHOIS_HOST`, default `127.0.0.1`
+- `WHOIS_PORT`, default `43`
 - `CONTROL_HOST`, default `127.0.0.1`
 - `CONTROL_PORT`, default `8080`
 - `GREETING_SERVER_ID`, default `epp-testing-tool`
+- `REGISTRY_TLD`, default `melendez`
 - `EPP_USERS`, optional JSON array of `{ "clid": "...", "password": "..." }`
 - `EPP_CLID` / `EPP_PASSWORD`, optional legacy override for the first default user
 - `RESET_HTTP_USER`, default `admin`
@@ -69,7 +75,7 @@ npm install
 npm run dev
 ```
 
-The EPP server listens on `127.0.0.1:7000`, and the control API listens on `127.0.0.1:8080`.
+The EPP server listens on `127.0.0.1:7000`, WHOIS listens on `127.0.0.1:43`, and the control API listens on `127.0.0.1:8080`.
 
 By default, domains are persisted in `data/epp-testing-tool.sqlite`. The `data/` directory is created automatically and is not versioned in git.
 
@@ -94,6 +100,14 @@ curl http://127.0.0.1:8080/commands
 The dashboard also includes a **Download CSV** button for exporting the full domain table.
 It also includes a **DNS Zone** section for generating and downloading a BIND-style `.melendez` TLD zone file with DNSSEC KSK/ZSK records, DS records, RRSIG signatures, NSEC3 records, key renewal mode, and NSEC3 parameters.
 The **Help** section documents the available site features and supported EPP commands.
+
+WHOIS can be queried directly over TCP:
+
+```bash
+printf 'example.melendez\r\n' | nc 127.0.0.1 43
+printf 'café.melendez\r\n' | nc 127.0.0.1 43
+printf 'xn--caf-dma.melendez\r\n' | nc 127.0.0.1 43
+```
 
 You can also send EPP XML over HTTP:
 

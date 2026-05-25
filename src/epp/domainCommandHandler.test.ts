@@ -47,6 +47,30 @@ test("persists secDNS DS records from create and update commands", async () => {
   assert.match(response, /<secDNS:digest>BBBBBBBBBBBBBBBB<\/secDNS:digest>/);
 });
 
+test("canonicalizes IDNs and rejects domains outside .melendez policy", async () => {
+  const repository = new InMemoryDomainRepository();
+  const service = new DomainService(repository);
+  const handler = new DomainCommandHandler(service);
+  const context: CommandContext = {
+    session: {
+      id: "test-session",
+      authenticated: true,
+      clid: "melendez-admin",
+      connectedAt: new Date(),
+      lastCommandAt: new Date()
+    },
+    rawXml: ""
+  };
+
+  const idnResponse = await handler.handle(parseEppXml(createDomainXml("café.melendez")), context);
+  assert.match(idnResponse, /<domain:name>xn--caf-dma\.melendez<\/domain:name>/);
+  assert.ok(await service.findByName("xn--caf-dma.melendez"));
+  assert.ok(await service.findByName("café.melendez"));
+
+  const invalidResponse = await handler.handle(parseEppXml(createDomainXml("example.com")), context);
+  assert.match(invalidResponse, /<result code="2005">/);
+});
+
 function createXml(keyTag: string, digest: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
@@ -68,6 +92,21 @@ function createXml(keyTag: string, digest: string): string {
         </secDNS:dsData>
       </secDNS:create>
     </extension>
+  </command>
+</epp>`;
+}
+
+function createDomainXml(name: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <create>
+      <domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>${name}</domain:name>
+        <domain:period unit="y">1</domain:period>
+        <domain:authInfo><domain:pw>secret</domain:pw></domain:authInfo>
+      </domain:create>
+    </create>
   </command>
 </epp>`;
 }

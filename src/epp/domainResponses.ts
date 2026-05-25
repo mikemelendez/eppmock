@@ -196,6 +196,10 @@ export function objectNotAuthorized(transactionId?: string): string {
   return domainErrorResponse(2201, "Authorization error", transactionId);
 }
 
+export function parameterValuePolicyError(transactionId?: string): string {
+  return domainErrorResponse(2005, "Parameter value policy error", transactionId);
+}
+
 function domainErrorResponse(code: number, message: string, transactionId?: string): string {
   return buildEppXml({
     epp: {

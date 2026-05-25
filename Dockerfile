@@ -25,6 +25,6 @@ COPY package*.json ./
 
 RUN mkdir -p /app/data
 
-EXPOSE 7000 8080
+EXPOSE 43 7000 8080
 
 CMD ["node", "dist/index.js"]

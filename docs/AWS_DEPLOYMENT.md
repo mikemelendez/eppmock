@@ -4,6 +4,7 @@ This project deploys well on a small AWS EC2 instance because it exposes:
 
 - HTTP/HTTPS dashboard through Caddy.
 - Raw EPP TCP on port `7000`.
+- WHOIS TCP on port `43`.
 - SQLite persistence on an attached EBS volume through a Docker volume.
 
 ## AWS Resources
@@ -20,6 +21,7 @@ Security group inbound rules:
 - `22/tcp` from your IP only
 - `80/tcp` from `0.0.0.0/0`
 - `443/tcp` from `0.0.0.0/0`
+- `43/tcp` from `0.0.0.0/0` or from the IP ranges that need WHOIS access
 - `7000/tcp` from the IP ranges that need EPP access
 
 Avoid NAT Gateway, RDS, and Load Balancers for the lowest-cost deployment.
@@ -65,6 +67,9 @@ RESET_HTTP_USER=admin
 RESET_HTTP_PASSWORD=<strong-password>
 EPP_USERS=[{"clid":"melendez-admin","password":"..."}]
 DNSSEC_KEY_PATH=/app/data/dnssec-keys.json
+REGISTRY_TLD=melendez
+WHOIS_HOST=0.0.0.0
+WHOIS_PORT=43
 ```
 
 `RESET_HTTP_PASSWORD` and `EPP_USERS` are required in production. The container runs with
@@ -148,6 +153,12 @@ EPP TCP:
 
 ```text
 eppmock.melendez.mx:7000
+```
+
+WHOIS TCP:
+
+```text
+eppmock.melendez.mx:43
 ```
 
 ## Manual Deploy

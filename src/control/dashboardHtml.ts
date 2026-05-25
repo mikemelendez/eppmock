@@ -362,12 +362,12 @@ export function dashboardHtml(): string {
         <div class="card-head">
           <div>
             <h2>Request Builder</h2>
-            <p class="muted">Choose a template, adjust the .melendez domain, and send XML to the EPP server.</p>
+            <p class="muted">Choose a template, adjust a second-level .melendez domain, and send XML to the EPP server.</p>
           </div>
         </div>
         <div class="card-body">
           <div class="toolbar">
-            <input id="domainName" value="example.melendez" placeholder="name.melendez" />
+            <input id="domainName" value="example.melendez" placeholder="example.melendez or café.melendez" />
             <select id="authUser"></select>
             <select id="template">
               <option value="domain-check">domain:check</option>
@@ -484,7 +484,7 @@ export function dashboardHtml(): string {
             <div class="help-list">
               <details class="help-item" open>
                 <summary>Request Builder</summary>
-                <p>Select a command template, edit the generated XML, then click Send EPP. When Auto login is enabled, the tool opens an EPP session, logs in with the selected user, sends the command, and shows every frame returned by the server.</p>
+                <p>Select a command template, edit the generated XML, then click Send EPP. The registry accepts only second-level .melendez domains such as example.melendez, including IDNs like café.melendez.</p>
               </details>
               <details class="help-item">
                 <summary>Authentication</summary>
@@ -509,6 +509,10 @@ export function dashboardHtml(): string {
               <details class="help-item">
                 <summary>Registry State and CSV</summary>
                 <p>The Registry State card shows persisted domains and recent EPP commands. Download CSV exports the full domain table for verification, including statuses, nameservers, contacts, authInfo, DS records, dates, and transfer state.</p>
+              </details>
+              <details class="help-item">
+                <summary>WHOIS</summary>
+                <p>WHOIS is available on TCP port 43. Query with a plain domain line, for example: printf "example.melendez\\r\\n" | nc eppmock.melendez.mx 43. IDN queries are accepted as Unicode or punycode.</p>
               </details>
               <details class="help-item">
                 <summary>DNS Zone Generator</summary>

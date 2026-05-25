@@ -54,9 +54,12 @@ function testConfig(dnssecKeyPath: string): AppConfig {
   return {
     eppHost: "127.0.0.1",
     eppPort: 7000,
+    whoisHost: "127.0.0.1",
+    whoisPort: 8043,
     controlHost: "127.0.0.1",
     controlPort: 8080,
     greetingServerId: "epp-testing-tool",
+    registryTld: "melendez",
     authUsers: defaultAuthUsers,
     resetHttpUser: "admin",
     resetHttpPassword: "test-reset-password",

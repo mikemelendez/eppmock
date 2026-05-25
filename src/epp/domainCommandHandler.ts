@@ -1,7 +1,8 @@
 import {
   DomainAlreadyExistsError,
   DomainNotFoundOrUnauthorizedError,
-  DomainService
+  DomainService,
+  RegistryPolicyError
 } from "../domain/domainService.js";
 import {
   domainCheckResponse,
@@ -11,7 +12,8 @@ import {
   domainTransferResponse,
   objectDoesNotExist,
   objectExists,
-  objectNotAuthorized
+  objectNotAuthorized,
+  parameterValuePolicyError
 } from "./domainResponses.js";
 import { childNode, childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
 import { commandCompleted, syntaxError } from "./responses.js";
@@ -67,8 +69,16 @@ export class DomainCommandHandler implements CommandHandler {
       return syntaxError(context.transactionId);
     }
 
-    const results = await this.domains.checkAvailability(names);
-    return domainCheckResponse(results, context.transactionId);
+    try {
+      const results = await this.domains.checkAvailability(names);
+      return domainCheckResponse(results, context.transactionId);
+    } catch (error) {
+      if (error instanceof RegistryPolicyError) {
+        return parameterValuePolicyError(context.transactionId);
+      }
+
+      throw error;
+    }
   }
 
   private async create(
@@ -107,6 +117,10 @@ export class DomainCommandHandler implements CommandHandler {
         return objectExists(context.transactionId);
       }
 
+      if (error instanceof RegistryPolicyError) {
+        return parameterValuePolicyError(context.transactionId);
+      }
+
       throw error;
     }
   }
@@ -143,6 +157,10 @@ export class DomainCommandHandler implements CommandHandler {
         return objectNotAuthorized(context.transactionId);
       }
 
+      if (error instanceof RegistryPolicyError) {
+        return parameterValuePolicyError(context.transactionId);
+      }
+
       throw error;
     }
   }
@@ -155,7 +173,17 @@ export class DomainCommandHandler implements CommandHandler {
       return syntaxError(context.transactionId);
     }
 
-    const domain = await this.domains.findByName(name);
+    let domain;
+
+    try {
+      domain = await this.domains.findByName(name);
+    } catch (error) {
+      if (error instanceof RegistryPolicyError) {
+        return parameterValuePolicyError(context.transactionId);
+      }
+
+      throw error;
+    }
 
     if (!domain) {
       return objectDoesNotExist(context.transactionId);
@@ -180,6 +208,10 @@ export class DomainCommandHandler implements CommandHandler {
         return objectNotAuthorized(context.transactionId);
       }
 
+      if (error instanceof RegistryPolicyError) {
+        return parameterValuePolicyError(context.transactionId);
+      }
+
       throw error;
     }
   }
@@ -199,6 +231,10 @@ export class DomainCommandHandler implements CommandHandler {
     } catch (error) {
       if (error instanceof DomainNotFoundOrUnauthorizedError) {
         return objectNotAuthorized(context.transactionId);
+      }
+
+      if (error instanceof RegistryPolicyError) {
+        return parameterValuePolicyError(context.transactionId);
       }
 
       throw error;
@@ -221,6 +257,10 @@ export class DomainCommandHandler implements CommandHandler {
     } catch (error) {
       if (error instanceof DomainNotFoundOrUnauthorizedError) {
         return objectDoesNotExist(context.transactionId);
+      }
+
+      if (error instanceof RegistryPolicyError) {
+        return parameterValuePolicyError(context.transactionId);
       }
 
       throw error;

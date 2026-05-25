@@ -10,6 +10,7 @@ import { CommandRouter } from "./epp/commandRouter.js";
 import { DomainCommandHandler } from "./epp/domainCommandHandler.js";
 import { startEppServer } from "./epp/eppServer.js";
 import { SystemCommandHandler } from "./epp/systemCommandHandler.js";
+import { startWhoisServer } from "./whois/whoisServer.js";
 
 const config = loadConfig();
 
@@ -17,7 +18,7 @@ const domainRepository: DomainRepository =
   config.storageMode === "memory"
     ? new InMemoryDomainRepository()
     : new SqliteDomainRepository(config.sqlitePath);
-const domainService = new DomainService(domainRepository);
+const domainService = new DomainService(domainRepository, config.registryTld);
 const commandLog = new CommandLogRepository();
 
 const authHandler = new AuthCommandHandler(config);
@@ -36,4 +37,5 @@ router.register("poll", systemHandler);
 router.register("hello", systemHandler);
 
 startEppServer(config, router);
+startWhoisServer(config, domainService);
 await startControlServer(config, domainService, commandLog);
