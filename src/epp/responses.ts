@@ -25,6 +25,23 @@ export function greeting(serverId: string): string {
           svcExtension: {
             extURI: "urn:ietf:params:xml:ns:secDNS-1.1"
           }
+        },
+        dcp: {
+          access: {
+            all: ""
+          },
+          statement: {
+            purpose: {
+              admin: "",
+              prov: ""
+            },
+            recipient: {
+              ours: ""
+            },
+            retention: {
+              stated: ""
+            }
+          }
         }
       }
     }

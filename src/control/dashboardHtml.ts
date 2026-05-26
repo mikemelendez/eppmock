@@ -390,7 +390,7 @@ export function dashboardHtml(): string {
             <button class="primary" id="send">Send EPP</button>
             <button id="format">Format</button>
             <button class="danger" id="reset">Reset</button>
-            <label class="check"><input id="autoLogin" type="checkbox" checked /> Auto login</label>
+            <label class="check"><input id="autoLogin" type="checkbox" /> Auto login</label>
           </div>
         </div>
       </div>
@@ -747,7 +747,6 @@ export function dashboardHtml(): string {
         domainName.value.trim() || "example.melendez",
         selectedAuthUser()
       );
-      autoLogin.checked = template.value !== "login";
     }
 
     function selectedAuthUser() {

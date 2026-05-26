@@ -60,7 +60,7 @@ const resetBodySchema = z.object({
 
 const eppRequestBodySchema = z.object({
   xml: z.string().min(1),
-  autoLogin: z.boolean().default(true),
+  autoLogin: z.boolean().default(false),
   clid: z.string().min(1).optional(),
   password: z.string().min(1).optional(),
   timeoutMs: z.number().int().positive().max(30_000).optional()

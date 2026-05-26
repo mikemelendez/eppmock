@@ -24,7 +24,9 @@ export async function sendEppRequest(
   request: EppClientRequest
 ): Promise<EppClientResult> {
   const timeoutMs = request.timeoutMs ?? 5_000;
-  const expectedFrames = request.autoLogin ? 3 : 2;
+  const helloRequest = isHelloRequest(request.xml);
+  const autoLogin = request.autoLogin && !helloRequest;
+  const expectedFrames = helloRequest ? 1 : autoLogin ? 3 : 2;
   const decoder = new EppFrameDecoder();
   const frames: EppClientFrame[] = [];
   const fallbackUser = config.authUsers[0];
@@ -51,17 +53,17 @@ export async function sendEppRequest(
       const messages = decoder.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
 
       for (const xml of messages) {
-        const type = frameType(frames.length, request.autoLogin);
+        const type = frameType(frames.length, autoLogin);
         frames.push({ type, xml });
       }
 
-      if (frames.length === 1) {
-        if (request.autoLogin) {
+      if (!helloRequest && frames.length === 1) {
+        if (autoLogin) {
           socket.write(encodeFrame(loginXml(loginClid, loginPassword)));
         } else {
           socket.write(encodeFrame(request.xml));
         }
-      } else if (request.autoLogin && frames.length === 2) {
+      } else if (autoLogin && frames.length === 2) {
         socket.write(encodeFrame(request.xml));
       }
 
@@ -89,6 +91,10 @@ function frameType(index: number, autoLogin: boolean): EppClientFrame["type"] {
   }
 
   return "command";
+}
+
+function isHelloRequest(xml: string): boolean {
+  return /<\s*(?:[A-Za-z_][\w.-]*:)?hello(?:\s|\/|>)/u.test(xml);
 }
 
 function loginXml(clid: string, password: string): string {
