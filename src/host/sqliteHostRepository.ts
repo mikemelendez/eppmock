@@ -95,7 +95,9 @@ export class SqliteHostRepository implements HostRepository {
   }
 
   close(): void {
-    this.db.close();
+    if (this.db.open) {
+      this.db.close();
+    }
   }
 
   private insert(record: HostRecord): void {

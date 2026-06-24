@@ -8,28 +8,42 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function mockResultClass(resultCode: string): string {
+  const code = resultCode.trim();
+  if (/^2/.test(code)) {
+    return "res-err";
+  }
+  if (/^1/.test(code) || code === "greeting") {
+    return "res-ok";
+  }
+  return "";
+}
+
 function dataMockDocRows(): string {
   return dataMockCatalog
-    .map((command) =>
+    .map((command, ci) =>
       command.variations
         .map(
-          (variation, index) => `
+          (variation, vi) => `
             <tr>
               ${
-                index === 0
+                vi === 0
                   ? `<td rowspan="${command.variations.length}"><code>${escapeHtml(command.command)}</code><div class="muted" style="margin-top:4px">id: ${escapeHtml(command.identifier)}</div></td>`
                   : ""
               }
               <td>${escapeHtml(variation.variation)}</td>
-              <td>${escapeHtml(variation.tag)}</td>
-              <td><code>${escapeHtml(variation.resultCode)}</code></td>
-              <td><pre class="mock-ex">${escapeHtml(variation.exampleRequest)}</pre></td>
-              <td>${escapeHtml(variation.exampleResponse)}</td>
+              <td><span class="tag-pill">${escapeHtml(variation.tag)}</span></td>
+              <td><code class="${mockResultClass(variation.resultCode)}">${escapeHtml(variation.resultCode)}</code></td>
+              <td><button type="button" class="mock-view" data-ci="${ci}" data-vi="${vi}">View XML</button></td>
             </tr>`
         )
         .join("")
     )
     .join("");
+}
+
+function dataMockCatalogJson(): string {
+  return JSON.stringify(dataMockCatalog).replace(/</g, "\\u003c");
 }
 
 export function dashboardHtml(): string {
@@ -608,10 +622,32 @@ export function dashboardHtml(): string {
           <div class="card-body">
             <style>
               .mock-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-              .mock-table th, .mock-table td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
-              .mock-table th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--bg); }
+              .mock-table th, .mock-table td { text-align: left; vertical-align: middle; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+              .mock-table th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--bg); z-index: 1; }
+              .mock-table tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
               .mock-table code { color: var(--accent-2); }
-              .mock-ex { margin: 0; white-space: pre-wrap; word-break: break-word; max-width: 420px; font-size: 12px; color: var(--muted); }
+              .tag-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; background: var(--panel-strong); border: 1px solid var(--line); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); }
+              .res-ok { color: var(--ok) !important; }
+              .res-err { color: var(--danger) !important; }
+              .mock-view { cursor: pointer; padding: 5px 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 12px; white-space: nowrap; transition: background .15s, border-color .15s, color .15s; }
+              .mock-view:hover { background: var(--panel-strong); border-color: var(--accent); color: var(--accent); }
+
+              .mock-modal { position: fixed; inset: 0; background: rgba(3, 5, 10, 0.72); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 1000; }
+              .mock-modal.open { display: flex; }
+              .mock-modal-card { width: min(980px, 100%); max-height: 88vh; display: flex; flex-direction: column; background: #0d1018; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); overflow: hidden; }
+              .mock-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--line); }
+              .mock-modal-head h3 { margin: 0; font-size: 16px; }
+              .mock-close { background: none; border: none; color: var(--muted); font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
+              .mock-close:hover { color: var(--text); }
+              .mock-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 22px 0; }
+              .mock-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+              .mock-chip em { color: var(--muted); font-style: normal; }
+              .mock-modal-body { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 18px 22px 22px; overflow: auto; }
+              .mock-modal-body section { display: flex; flex-direction: column; min-width: 0; }
+              .mock-modal-body header { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+              .mock-code { margin: 0; background: #06080d; border: 1px solid var(--line); border-radius: 10px; padding: 14px; overflow: auto; max-height: 56vh; }
+              .mock-code code { white-space: pre; font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: #cbd5e1; }
+              @media (max-width: 720px) { .mock-modal-body { grid-template-columns: 1fr; } }
             </style>
             <div style="overflow: auto; max-height: 560px">
               <table class="mock-table">
@@ -621,8 +657,7 @@ export function dashboardHtml(): string {
                     <th>Variation</th>
                     <th>Tag (substring in identifier)</th>
                     <th>Result</th>
-                    <th>Example request</th>
-                    <th>Example response</th>
+                    <th>Example</th>
                   </tr>
                 </thead>
                 <tbody>${dataMockDocRows()}</tbody>
@@ -633,6 +668,100 @@ export function dashboardHtml(): string {
 
       </div>
     </section>
+
+    <div class="mock-modal" id="mock-modal" role="dialog" aria-modal="true" aria-labelledby="mock-modal-title">
+      <div class="mock-modal-card">
+        <div class="mock-modal-head">
+          <h3 id="mock-modal-title"></h3>
+          <button type="button" class="mock-close" data-close aria-label="Close">&times;</button>
+        </div>
+        <div class="mock-chips" id="mock-modal-meta"></div>
+        <div class="mock-modal-body">
+          <section>
+            <header>Example request</header>
+            <pre class="mock-code"><code id="mock-modal-req"></code></pre>
+          </section>
+          <section>
+            <header>Example response</header>
+            <pre class="mock-code"><code id="mock-modal-res"></code></pre>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script id="mock-catalog" type="application/json">${dataMockCatalogJson()}</script>
+    <script>
+      (function () {
+        var catalog = JSON.parse(document.getElementById("mock-catalog").textContent || "[]");
+        var modal = document.getElementById("mock-modal");
+        var titleEl = document.getElementById("mock-modal-title");
+        var metaEl = document.getElementById("mock-modal-meta");
+        var reqEl = document.getElementById("mock-modal-req");
+        var resEl = document.getElementById("mock-modal-res");
+
+        function isXml(value) {
+          return /^\\s*</.test(value) && /(<\\/|\\/>)/.test(value);
+        }
+
+        function formatXml(value) {
+          if (!isXml(value)) { return value; }
+          var withBreaks = value.replace(/>\\s*</g, ">\\n<");
+          var pad = 0;
+          var lines = withBreaks.split("\\n").map(function (raw) {
+            var node = raw.trim();
+            if (!node) { return ""; }
+            if (/^<\\//.test(node) && pad > 0) { pad -= 1; }
+            var line = new Array(pad + 1).join("  ") + node;
+            if (/^<[^!?][^>]*[^\\/]>$/.test(node) && !/^<\\//.test(node)) { pad += 1; }
+            return line;
+          });
+          return lines.filter(function (line) { return line.length > 0; }).join("\\n");
+        }
+
+        function chip(label, value) {
+          var span = document.createElement("span");
+          span.className = "mock-chip";
+          var em = document.createElement("em");
+          em.textContent = label;
+          span.appendChild(em);
+          span.appendChild(document.createTextNode(value));
+          return span;
+        }
+
+        function open(ci, vi) {
+          var cmd = catalog[ci];
+          if (!cmd) { return; }
+          var variation = cmd.variations[vi];
+          if (!variation) { return; }
+          titleEl.textContent = cmd.command + "  \\u00b7  " + variation.variation;
+          metaEl.innerHTML = "";
+          metaEl.appendChild(chip("identifier", cmd.identifier));
+          metaEl.appendChild(chip("tag", variation.tag));
+          metaEl.appendChild(chip("result", variation.resultCode));
+          reqEl.textContent = formatXml(variation.exampleRequest);
+          resEl.textContent = formatXml(variation.exampleResponse);
+          modal.classList.add("open");
+          document.body.style.overflow = "hidden";
+        }
+
+        function close() {
+          modal.classList.remove("open");
+          document.body.style.overflow = "";
+        }
+
+        document.querySelectorAll(".mock-view").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            open(Number(btn.getAttribute("data-ci")), Number(btn.getAttribute("data-vi")));
+          });
+        });
+        modal.addEventListener("click", function (event) {
+          if (event.target === modal || event.target.hasAttribute("data-close")) { close(); }
+        });
+        document.addEventListener("keydown", function (event) {
+          if (event.key === "Escape") { close(); }
+        });
+      })();
+    </script>
     <p class="credits">This site was created for testing purposes -  Credits : Mike Melendez miguel@melendez.mx</p>
   </main>
 

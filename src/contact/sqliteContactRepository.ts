@@ -113,7 +113,9 @@ export class SqliteContactRepository implements ContactRepository {
   }
 
   close(): void {
-    this.db.close();
+    if (this.db.open) {
+      this.db.close();
+    }
   }
 
   private insert(record: ContactRecord): void {
