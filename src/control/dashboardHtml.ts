@@ -110,26 +110,6 @@ export function dashboardHtml(): string {
 
     .muted { color: var(--muted); }
 
-    .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: var(--panel);
-      color: var(--muted);
-      white-space: nowrap;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: var(--ok);
-      box-shadow: 0 0 24px var(--ok);
-    }
-
     .grid {
       display: grid;
       grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
@@ -402,7 +382,6 @@ export function dashboardHtml(): string {
         <p class="muted">Extensible Provisioning Protocol</p>
         <h1>EPP Testing Tool</h1>
       </div>
-      <div class="status"><span class="dot"></span><span id="health">Connecting...</span></div>
     </header>
 
     <section class="grid">
@@ -1259,13 +1238,10 @@ export function dashboardHtml(): string {
     }
 
     async function refreshState() {
-      const [domainResponse, commandResponse, healthResponse] = await Promise.all([
+      const [domainResponse, commandResponse] = await Promise.all([
         fetch("/domains"),
-        fetch("/commands?limit=8"),
-        fetch("/health")
+        fetch("/commands?limit=8")
       ]);
-
-      $("health").textContent = healthResponse.ok ? "Online" : "Error";
 
       const domainPayload = await domainResponse.json();
       domains.innerHTML = domainPayload.length
