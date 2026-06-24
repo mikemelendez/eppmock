@@ -16,6 +16,8 @@ export const defaultAuthUsers: AuthUser[] = [
 const configSchema = z.object({
   eppHost: z.string().default("127.0.0.1"),
   eppPort: z.coerce.number().int().positive().default(7000),
+  eppMockHost: z.string().default("127.0.0.1"),
+  eppMockPort: z.coerce.number().int().positive().default(7001),
   whoisHost: z.string().default("127.0.0.1"),
   whoisPort: z.coerce.number().int().positive().default(43),
   controlHost: z.string().default("127.0.0.1"),
@@ -38,6 +40,8 @@ export function loadConfig(env = process.env): AppConfig {
   const config = configSchema.parse({
     eppHost: env.EPP_HOST,
     eppPort: env.EPP_PORT,
+    eppMockHost: env.EPP_MOCK_HOST,
+    eppMockPort: env.EPP_MOCK_PORT,
     whoisHost: env.WHOIS_HOST,
     whoisPort: env.WHOIS_PORT,
     controlHost: env.CONTROL_HOST,

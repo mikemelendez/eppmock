@@ -95,6 +95,8 @@ function testConfig(dnssecKeyPath: string, overrides: Partial<AppConfig> = {}): 
   return {
     eppHost: "127.0.0.1",
     eppPort: 7000,
+    eppMockHost: "127.0.0.1",
+    eppMockPort: 7001,
     whoisHost: "127.0.0.1",
     whoisPort: 8043,
     controlHost: "127.0.0.1",

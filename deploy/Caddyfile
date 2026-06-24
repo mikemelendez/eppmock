@@ -3,3 +3,10 @@ eppmock.melendez.mx {
 
   reverse_proxy app:8080
 }
+
+# RDAP (RFC 7480 requires HTTPS). Point an A/AAAA record for this subdomain at the host.
+rdap.eppmock.melendez.mx {
+  encode zstd gzip
+
+  reverse_proxy app:8090
+}

@@ -1,3 +1,37 @@
+import { dataMockCatalog } from "../epp/dataMockCatalog.js";
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function dataMockDocRows(): string {
+  return dataMockCatalog
+    .map((command) =>
+      command.variations
+        .map(
+          (variation, index) => `
+            <tr>
+              ${
+                index === 0
+                  ? `<td rowspan="${command.variations.length}"><code>${escapeHtml(command.command)}</code><div class="muted" style="margin-top:4px">id: ${escapeHtml(command.identifier)}</div></td>`
+                  : ""
+              }
+              <td>${escapeHtml(variation.variation)}</td>
+              <td>${escapeHtml(variation.tag)}</td>
+              <td><code>${escapeHtml(variation.resultCode)}</code></td>
+              <td><pre class="mock-ex">${escapeHtml(variation.exampleRequest)}</pre></td>
+              <td>${escapeHtml(variation.exampleResponse)}</td>
+            </tr>`
+        )
+        .join("")
+    )
+    .join("");
+}
+
 export function dashboardHtml(): string {
   return `<!doctype html>
 <html lang="en">
@@ -370,19 +404,41 @@ export function dashboardHtml(): string {
             <input id="domainName" value="example.melendez" placeholder="example.melendez or café.melendez" />
             <select id="authUser"></select>
             <select id="template">
-              <option value="domain-check">domain:check</option>
-              <option value="domain-create">domain:create</option>
-              <option value="domain-info">domain:info</option>
-              <option value="domain-update">domain:update</option>
-              <option value="domain-delete">domain:delete</option>
-              <option value="domain-renew">domain:renew</option>
-              <option value="transfer-request">transfer:request</option>
-              <option value="transfer-approve">transfer:approve</option>
-              <option value="transfer-query">transfer:query</option>
-              <option value="poll">poll</option>
-              <option value="hello">hello</option>
-              <option value="login">login</option>
-              <option value="logout">logout</option>
+              <optgroup label="Domain">
+                <option value="domain-check">domain:check</option>
+                <option value="domain-create">domain:create</option>
+                <option value="domain-info">domain:info</option>
+                <option value="domain-update">domain:update</option>
+                <option value="domain-delete">domain:delete</option>
+                <option value="domain-renew">domain:renew</option>
+                <option value="transfer-request">domain:transfer (request)</option>
+                <option value="transfer-approve">domain:transfer (approve)</option>
+                <option value="transfer-query">domain:transfer (query)</option>
+              </optgroup>
+              <optgroup label="Domain extensions">
+                <option value="domain-create-launch">domain:create (launch sunrise)</option>
+                <option value="domain-restore">domain:update (RGP restore)</option>
+              </optgroup>
+              <optgroup label="Contact">
+                <option value="contact-check">contact:check</option>
+                <option value="contact-create">contact:create</option>
+                <option value="contact-info">contact:info</option>
+                <option value="contact-update">contact:update</option>
+                <option value="contact-delete">contact:delete</option>
+              </optgroup>
+              <optgroup label="Host">
+                <option value="host-check">host:check</option>
+                <option value="host-create">host:create</option>
+                <option value="host-info">host:info</option>
+                <option value="host-update">host:update</option>
+                <option value="host-delete">host:delete</option>
+              </optgroup>
+              <optgroup label="Session">
+                <option value="poll">poll</option>
+                <option value="hello">hello</option>
+                <option value="login">login</option>
+                <option value="logout">logout</option>
+              </optgroup>
             </select>
           </div>
           <textarea id="xml"></textarea>
@@ -500,11 +556,23 @@ export function dashboardHtml(): string {
                   <li>domain:delete removes the domain.</li>
                   <li>domain:renew extends expiration.</li>
                   <li>domain:transfer supports request, query, approve, reject, and cancel.</li>
+                  <li>Extensions: secDNS (DS data), launch (sunrise create), and rgp (redemption restore via domain:update).</li>
+                </ul>
+              </details>
+              <details class="help-item">
+                <summary>Contact and Host Commands</summary>
+                <ul>
+                  <li>contact:check/create/info/update/delete manage RFC 5733 contact objects (postalInfo, voice, fax, email, authInfo).</li>
+                  <li>host:check/create/info/update/delete manage RFC 5732 host objects with IPv4 and IPv6 glue addresses.</li>
                 </ul>
               </details>
               <details class="help-item">
                 <summary>Session Commands</summary>
-                <p>login authenticates the session, logout closes it, hello returns server capabilities, and poll returns queued server messages. The service returns no pending messages by default.</p>
+                <p>login authenticates the session, logout closes it, hello returns server capabilities, and poll returns queued server messages (a transfer request enqueues a poll message). The service returns no pending messages by default.</p>
+              </details>
+              <details class="help-item">
+                <summary>RDAP and Data-Based Mock Mode</summary>
+                <p>An RDAP service runs on port 8090 (/domain, /nameserver, /entity, /help). A second, stateless EPP service runs on port 7001 that answers from request data only - see the Data-Based Mock Mode table below for the tag conventions.</p>
               </details>
               <details class="help-item">
                 <summary>Registry State and CSV</summary>
@@ -526,6 +594,39 @@ export function dashboardHtml(): string {
                 <summary>Protected Reset</summary>
                 <p>Reset clears the entire domain table and command log. It is protected by HTTP Basic Auth using RESET_HTTP_USER and RESET_HTTP_PASSWORD. Defaults are admin and reset-secret.</p>
               </details>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="grid-column: 1 / -1">
+          <div class="card-head">
+            <div>
+              <h2>Data-Based Mock Mode &mdash; port 7001</h2>
+              <p class="muted">A second, stateless EPP service listens on port 7001 and answers from request data only &mdash; no database, no session state. Connect there and use the tags below (case-insensitive substrings in the highlighted identifier) to drive a specific response. Port 7000 remains the database-backed service.</p>
+            </div>
+          </div>
+          <div class="card-body">
+            <style>
+              .mock-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+              .mock-table th, .mock-table td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+              .mock-table th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--bg); }
+              .mock-table code { color: var(--accent-2); }
+              .mock-ex { margin: 0; white-space: pre-wrap; word-break: break-word; max-width: 420px; font-size: 12px; color: var(--muted); }
+            </style>
+            <div style="overflow: auto; max-height: 560px">
+              <table class="mock-table">
+                <thead>
+                  <tr>
+                    <th>Command</th>
+                    <th>Variation</th>
+                    <th>Tag (substring in identifier)</th>
+                    <th>Result</th>
+                    <th>Example request</th>
+                    <th>Example response</th>
+                  </tr>
+                </thead>
+                <tbody>${dataMockDocRows()}</tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -705,6 +806,178 @@ export function dashboardHtml(): string {
       "transfer-request": (domain) => transferTemplate(domain, "request"),
       "transfer-approve": (domain) => transferTemplate(domain, "approve"),
       "transfer-query": (domain) => transferTemplate(domain, "query"),
+      "domain-create-launch": (domain) => \`<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <create>
+      <domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>\${escapeHtml(domain)}</domain:name>
+        <domain:authInfo>
+          <domain:pw>domain-secret</domain:pw>
+        </domain:authInfo>
+      </domain:create>
+    </create>
+    <extension>
+      <launch:create xmlns:launch="urn:ietf:params:xml:ns:launch-1.0">
+        <launch:phase>sunrise</launch:phase>
+      </launch:create>
+    </extension>
+    <clTRID>dashboard-create-launch</clTRID>
+  </command>
+</epp>\`,
+      "domain-restore": (domain) => \`<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <update>
+      <domain:update xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>\${escapeHtml(domain)}</domain:name>
+      </domain:update>
+    </update>
+    <extension>
+      <rgp:update xmlns:rgp="urn:ietf:params:xml:ns:rgp-1.0">
+        <rgp:restore op="request" />
+      </rgp:update>
+    </extension>
+    <clTRID>dashboard-restore</clTRID>
+  </command>
+</epp>\`,
+      "contact-check": () => \`<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <check>
+      <contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0">
+        <contact:id>sh8013</contact:id>
+      </contact:check>
+    </check>
+    <clTRID>dashboard-contact-check</clTRID>
+  </command>
+</epp>\`,
+      "contact-create": () => \`<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <create>
+      <contact:create xmlns:contact="urn:ietf:params:xml:ns:contact-1.0">
+        <contact:id>sh8013</contact:id>
+        <contact:postalInfo type="int">
+          <contact:name>John Doe</contact:name>
+          <contact:org>Example Inc.</contact:org>
+          <contact:addr>
+            <contact:street>123 Example Dr.</contact:street>
+            <contact:city>Dulles</contact:city>
+            <contact:sp>VA</contact:sp>
+            <contact:pc>20166</contact:pc>
+            <contact:cc>US</contact:cc>
+          </contact:addr>
+        </contact:postalInfo>
+        <contact:voice>+1.7035555555</contact:voice>
+        <contact:email>jdoe@example.melendez</contact:email>
+        <contact:authInfo>
+          <contact:pw>contact-secret</contact:pw>
+        </contact:authInfo>
+      </contact:create>
+    </create>
+    <clTRID>dashboard-contact-create</clTRID>
+  </command>
+</epp>\`,
+      "contact-info": () => \`<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <info>
+      <contact:info xmlns:contact="urn:ietf:params:xml:ns:contact-1.0">
+        <contact:id>sh8013</contact:id>
+      </contact:info>
+    </info>
+    <clTRID>dashboard-contact-info</clTRID>
+  </command>
+</epp>\`,
+      "contact-update": () => \`<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <update>
+      <contact:update xmlns:contact="urn:ietf:params:xml:ns:contact-1.0">
+        <contact:id>sh8013</contact:id>
+        <contact:chg>
+          <contact:email>new-email@example.melendez</contact:email>
+        </contact:chg>
+      </contact:update>
+    </update>
+    <clTRID>dashboard-contact-update</clTRID>
+  </command>
+</epp>\`,
+      "contact-delete": () => \`<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <delete>
+      <contact:delete xmlns:contact="urn:ietf:params:xml:ns:contact-1.0">
+        <contact:id>sh8013</contact:id>
+      </contact:delete>
+    </delete>
+    <clTRID>dashboard-contact-delete</clTRID>
+  </command>
+</epp>\`,
+      "host-check": (domain) => \`<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <check>
+      <host:check xmlns:host="urn:ietf:params:xml:ns:host-1.0">
+        <host:name>ns1.\${escapeHtml(domain)}</host:name>
+      </host:check>
+    </check>
+    <clTRID>dashboard-host-check</clTRID>
+  </command>
+</epp>\`,
+      "host-create": (domain) => \`<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <create>
+      <host:create xmlns:host="urn:ietf:params:xml:ns:host-1.0">
+        <host:name>ns1.\${escapeHtml(domain)}</host:name>
+        <host:addr ip="v4">192.0.2.10</host:addr>
+        <host:addr ip="v6">2001:db8::1</host:addr>
+      </host:create>
+    </create>
+    <clTRID>dashboard-host-create</clTRID>
+  </command>
+</epp>\`,
+      "host-info": (domain) => \`<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <info>
+      <host:info xmlns:host="urn:ietf:params:xml:ns:host-1.0">
+        <host:name>ns1.\${escapeHtml(domain)}</host:name>
+      </host:info>
+    </info>
+    <clTRID>dashboard-host-info</clTRID>
+  </command>
+</epp>\`,
+      "host-update": (domain) => \`<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <update>
+      <host:update xmlns:host="urn:ietf:params:xml:ns:host-1.0">
+        <host:name>ns1.\${escapeHtml(domain)}</host:name>
+        <host:add>
+          <host:addr ip="v6">2001:db8::2</host:addr>
+        </host:add>
+        <host:rem>
+          <host:addr ip="v4">192.0.2.10</host:addr>
+        </host:rem>
+      </host:update>
+    </update>
+    <clTRID>dashboard-host-update</clTRID>
+  </command>
+</epp>\`,
+      "host-delete": (domain) => \`<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <delete>
+      <host:delete xmlns:host="urn:ietf:params:xml:ns:host-1.0">
+        <host:name>ns1.\${escapeHtml(domain)}</host:name>
+      </host:delete>
+    </delete>
+    <clTRID>dashboard-host-delete</clTRID>
+  </command>
+</epp>\`,
       "poll": () => \`<?xml version="1.0" encoding="UTF-8"?>
 <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
   <command>

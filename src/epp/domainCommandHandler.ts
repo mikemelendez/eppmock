@@ -20,7 +20,7 @@ import {
 } from "./domainResponses.js";
 import { childNode, childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
 import type { PollMessageRepository } from "./pollMessageRepository.js";
-import { commandCompleted, syntaxError } from "./responses.js";
+import { commandCompleted, resultResponse, syntaxError } from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
 import { asArray } from "./xml.js";
 
@@ -241,6 +241,13 @@ export class DomainCommandHandler implements CommandHandler {
       return objectDoesNotExist(context.transactionId);
     }
 
+    const isSponsoringRegistrar = context.session.clid === domain.registrarId;
+    const providedAuthInfo = text(childValue(childNode(domainInfo, "authInfo"), "pw"));
+
+    if (!isSponsoringRegistrar && (!domain.authInfo || providedAuthInfo !== domain.authInfo)) {
+      return objectNotAuthorized(context.transactionId);
+    }
+
     return domainInfoResponse(domain, context.transactionId);
   }
 
@@ -304,6 +311,20 @@ export class DomainCommandHandler implements CommandHandler {
     }
 
     try {
+      if (operation === "request") {
+        const target = await this.domains.findByName(name);
+
+        if (!target) {
+          return objectDoesNotExist(context.transactionId);
+        }
+
+        const providedAuthInfo = text(childValue(childNode(domainTransfer, "authInfo"), "pw"));
+
+        if (target.authInfo && providedAuthInfo !== target.authInfo) {
+          return resultResponse(2202, "Invalid authorization information", context.transactionId);
+        }
+      }
+
       const domain = await this.domains.transfer(name, operation, context.session.clid);
 
       if (operation === "request" && this.pollMessages) {

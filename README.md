@@ -49,7 +49,9 @@ The registry accepts only second-level `.melendez` domains. Unicode IDNs are acc
 Available variables:
 
 - `EPP_HOST`, default `127.0.0.1`
-- `EPP_PORT`, default `7000`
+- `EPP_PORT`, default `7000` (database-backed EPP service)
+- `EPP_MOCK_HOST`, default `127.0.0.1`
+- `EPP_MOCK_PORT`, default `7001` (stateless data-based mock service)
 - `WHOIS_HOST`, default `127.0.0.1`
 - `WHOIS_PORT`, default `43`
 - `CONTROL_HOST`, default `127.0.0.1`
@@ -193,6 +195,58 @@ Unknown objects return an RDAP error object (404), and malformed queries return 
 curl http://127.0.0.1:8090/domain/example.melendez
 curl http://127.0.0.1:8090/nameserver/ns1.example.melendez
 ```
+
+## Data-Based Mock Mode (port 7001)
+
+Alongside the database-backed EPP service on port `7000`, a **second, stateless EPP service** runs on `EPP_MOCK_PORT` (default `7001`). It answers every command based purely on substrings ("tags") in the request data — no database, no session state, no authentication required. This is ideal for deterministic integration tests: the same request always yields the same response.
+
+Both services share the same framing, parser, and response builders, so client code only needs to change the port. The dashboard renders the full tag table (generated from the same catalog in `src/epp/dataMockCatalog.ts` that drives the behavior, so docs never drift).
+
+The primary identifier inspected per command is: `clID` for `login`, `domain:name` for domain commands, `contact:id` for contact commands, `host:name` for host commands, and `clTRID` for `poll`. Matching is case-insensitive.
+
+| Command | Tag (substring in identifier) | Result | Meaning |
+| --- | --- | --- | --- |
+| `hello` | (always) | `greeting` | Server greeting |
+| `login` | `clID` contains `invalid` | `2200` | Authentication error |
+| `login` | any other `clID` | `1000` | Login successful |
+| `logout` | (always) | `1500` | Session ended |
+| `domain:check` | name contains `invalid`/`unavailable` | `1000` | `avail="0"` |
+| `domain:check` | any other name | `1000` | `avail="1"` |
+| `domain:create` | name contains `invalid` | `2302` | Object exists |
+| `domain:create` | name contains `policy` | `2005` | Parameter value policy error |
+| `domain:create` | any other name | `1000` | Created (echoes the request) |
+| `domain:info` | name contains `invalid` | `2303` | Object does not exist |
+| `domain:info` | any other name | `1000` | Synthesized `infData` |
+| `domain:update` | name contains `invalid` | `2303` | Object does not exist |
+| `domain:update` | any other name | `1000` | Updated |
+| `domain:delete` | name contains `invalid` | `2303` | Object does not exist |
+| `domain:delete` | name contains `linked` | `2305` | Object association prohibits operation |
+| `domain:delete` | any other name | `1000` | Deleted |
+| `domain:renew` | name contains `invalid` | `2303` | Object does not exist |
+| `domain:renew` | any other name | `1000` | Renewed (`renData`) |
+| `domain:transfer` | name contains `invalid` | `2303` | Object does not exist |
+| `domain:transfer` | any other name | `1001` | Transfer pending (`trnData`) |
+| `contact:check` | id contains `invalid` | `1000` | `avail="0"` |
+| `contact:check` | any other id | `1000` | `avail="1"` |
+| `contact:create` | id contains `invalid` | `2302` | Object exists |
+| `contact:create` | any other id | `1000` | Created |
+| `contact:info` | id contains `invalid` | `2303` | Object does not exist |
+| `contact:info` | any other id | `1000` | Synthesized `infData` |
+| `contact:update`/`contact:delete` | id contains `invalid` | `2303` | Object does not exist |
+| `contact:update`/`contact:delete` | any other id | `1000` | Completed |
+| `host:check` | name contains `invalid` | `1000` | `avail="0"` |
+| `host:check` | any other name | `1000` | `avail="1"` |
+| `host:create` | name contains `invalid` | `2302` | Object exists |
+| `host:create` | any other name | `1000` | Created |
+| `host:info` | name contains `invalid` | `2303` | Object does not exist |
+| `host:info` | any other name | `1000` | Synthesized `infData` |
+| `host:update`/`host:delete` | name contains `invalid` | `2303` | Object does not exist |
+| `host:update`/`host:delete` | any other name | `1000` | Completed |
+| `poll` | `op="req"`, `clTRID` contains `pending` | `1301` | One canned `msgQ` message |
+| `poll` | `op="req"` (default) | `1300` | No messages |
+| `poll` | `op="ack"` | `1000` | Acknowledged (`msgQ count=0`) |
+
+Example: a `domain:create` for `valid.melendez` on port 7001 returns `1000`; the same request for `invalid.melendez` returns `2302` (object exists), with no database involved.
 
 ## Compliance
 

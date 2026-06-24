@@ -3,10 +3,31 @@ import net from "node:net";
 import type { AppConfig } from "../config.js";
 import { EppFrameDecoder, encodeFrame } from "./framing.js";
 import { greeting, resultResponse } from "./responses.js";
-import type { CommandRouter } from "./commandRouter.js";
 import type { EppSession } from "./types.js";
 
-export function startEppServer(config: AppConfig, router: CommandRouter): net.Server {
+/**
+ * Anything that can turn a raw EPP frame into a response frame. Both the database-backed
+ * CommandRouter and the stateless DataMockRouter satisfy this contract.
+ */
+export interface EppRouter {
+  route(rawXml: string, session: EppSession): Promise<string>;
+}
+
+export interface EppServerOptions {
+  host: string;
+  port: number;
+  label: string;
+  exitOnError?: boolean;
+}
+
+export function startEppServer(config: AppConfig, router: EppRouter, options?: Partial<EppServerOptions>): net.Server {
+  const resolved: EppServerOptions = {
+    host: options?.host ?? config.eppHost,
+    port: options?.port ?? config.eppPort,
+    label: options?.label ?? "EPP testing tool",
+    exitOnError: options?.exitOnError ?? true
+  };
+
   const server = net.createServer((socket) => {
     const decoder = new EppFrameDecoder();
     const session: EppSession = {
@@ -24,24 +45,24 @@ export function startEppServer(config: AppConfig, router: CommandRouter): net.Se
     });
 
     socket.on("error", (error) => {
-      console.error("EPP socket error", error);
+      console.error(`${resolved.label} socket error`, error);
     });
   });
 
   server.on("error", (error: NodeJS.ErrnoException) => {
     const hint =
       error.code === "EADDRINUSE"
-        ? ` (port ${config.eppPort} is already in use; on macOS the AirPlay Receiver and Control Center listen on 7000 \u2014 disable it or set EPP_PORT)`
+        ? ` (port ${resolved.port} is already in use; on macOS the AirPlay Receiver and Control Center listen on 7000 \u2014 disable it or set the port)`
         : "";
-    console.error(
-      `EPP server failed to start on ${config.eppHost}:${config.eppPort}${hint}:`,
-      error.message
-    );
-    process.exitCode = 1;
+    console.error(`${resolved.label} failed to start on ${resolved.host}:${resolved.port}${hint}:`, error.message);
+
+    if (resolved.exitOnError) {
+      process.exitCode = 1;
+    }
   });
 
-  server.listen(config.eppPort, config.eppHost, () => {
-    console.log(`EPP testing tool listening on ${config.eppHost}:${config.eppPort}`);
+  server.listen(resolved.port, resolved.host, () => {
+    console.log(`${resolved.label} listening on ${resolved.host}:${resolved.port}`);
   });
 
   return server;
@@ -52,7 +73,7 @@ async function handleChunk(
   decoder: EppFrameDecoder,
   session: EppSession,
   socket: net.Socket,
-  router: CommandRouter
+  router: EppRouter
 ): Promise<void> {
   try {
     const messages = decoder.push(chunk);

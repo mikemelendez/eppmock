@@ -1,6 +1,8 @@
 import { loadConfig } from "./config.js";
 import { ContactService } from "./contact/contactService.js";
 import { InMemoryContactRepository } from "./contact/inMemoryContactRepository.js";
+import { SqliteContactRepository } from "./contact/sqliteContactRepository.js";
+import type { ContactRepository } from "./contact/types.js";
 import { startControlServer } from "./control/controlServer.js";
 import { DomainService } from "./domain/domainService.js";
 import { InMemoryDomainRepository } from "./domain/inMemoryDomainRepository.js";
@@ -8,10 +10,14 @@ import { SqliteDomainRepository } from "./domain/sqliteDomainRepository.js";
 import type { DomainRepository } from "./domain/types.js";
 import { HostService } from "./host/hostService.js";
 import { InMemoryHostRepository } from "./host/inMemoryHostRepository.js";
+import { SqliteHostRepository } from "./host/sqliteHostRepository.js";
+import type { HostRepository } from "./host/types.js";
 import { AuthCommandHandler } from "./epp/authCommandHandler.js";
 import { CommandLogRepository } from "./epp/commandLogRepository.js";
 import { CommandRouter } from "./epp/commandRouter.js";
 import { ContactCommandHandler } from "./epp/contactCommandHandler.js";
+import { DataMockHandler } from "./epp/dataMockHandler.js";
+import { DataMockRouter } from "./epp/dataMockRouter.js";
 import { DomainCommandHandler } from "./epp/domainCommandHandler.js";
 import { startEppServer } from "./epp/eppServer.js";
 import { HostCommandHandler } from "./epp/hostCommandHandler.js";
@@ -22,13 +28,21 @@ import { startWhoisServer } from "./whois/whoisServer.js";
 
 const config = loadConfig();
 
-const domainRepository: DomainRepository =
-  config.storageMode === "memory"
-    ? new InMemoryDomainRepository()
-    : new SqliteDomainRepository(config.sqlitePath);
+const useSqlite = config.storageMode === "sqlite";
+
+const domainRepository: DomainRepository = useSqlite
+  ? new SqliteDomainRepository(config.sqlitePath)
+  : new InMemoryDomainRepository();
+const contactRepository: ContactRepository = useSqlite
+  ? new SqliteContactRepository(config.sqlitePath)
+  : new InMemoryContactRepository();
+const hostRepository: HostRepository = useSqlite
+  ? new SqliteHostRepository(config.sqlitePath)
+  : new InMemoryHostRepository();
+
 const domainService = new DomainService(domainRepository, config.registryTld);
-const contactService = new ContactService(new InMemoryContactRepository());
-const hostService = new HostService(new InMemoryHostRepository());
+const contactService = new ContactService(contactRepository);
+const hostService = new HostService(hostRepository);
 const commandLog = new CommandLogRepository();
 const pollMessages = new PollMessageRepository();
 
@@ -59,7 +73,15 @@ router.register("host:delete", hostHandler);
 router.register("poll", systemHandler);
 router.register("hello", systemHandler);
 
+const dataMockRouter = new DataMockRouter(new DataMockHandler(config.greetingServerId));
+
 startEppServer(config, router);
+startEppServer(config, dataMockRouter, {
+  host: config.eppMockHost,
+  port: config.eppMockPort,
+  label: "EPP data-mock",
+  exitOnError: false
+});
 startWhoisServer(config, domainService);
 await startRdapServer(config, { domains: domainService, hosts: hostService, contacts: contactService });
 await startControlServer(config, domainService, commandLog);
