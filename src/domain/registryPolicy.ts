@@ -64,10 +64,17 @@ export class RegistryPolicy {
       throw new RegistryPolicyError(input, "domain name exceeds DNS length limit");
     }
 
+    const unicodeName = domainToUnicode(canonicalName);
+    const unicodeLabel = unicodeName.split(".")[0] ?? "";
+
+    if (!isAllowedIdnLabel(unicodeLabel)) {
+      throw new RegistryPolicyError(input, "domain label contains code points outside the IDN table");
+    }
+
     return {
       input,
       canonicalName,
-      unicodeName: domainToUnicode(canonicalName),
+      unicodeName,
       label,
       tld
     };
@@ -115,4 +122,15 @@ function canonicalizeLabel(label: string): string {
 
 function isValidDnsLabel(label: string): boolean {
   return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label);
+}
+
+/**
+ * IDN table for the registry (RFC 5891-5893). The base ASCII LDH set plus a Latin-script
+ * code point repertoire. U-labels outside this repertoire are rejected.
+ */
+const IDN_LATIN_EXTRA = "àáâäãåāçćčèéêëēěìíîïı\u00f1ńňòóôöõōøśšùúûüūýÿžźż";
+const idnLabelPattern = new RegExp(`^[a-z0-9-${IDN_LATIN_EXTRA}]+$`, "u");
+
+function isAllowedIdnLabel(unicodeLabel: string): boolean {
+  return idnLabelPattern.test(unicodeLabel);
 }

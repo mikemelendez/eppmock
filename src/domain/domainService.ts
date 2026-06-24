@@ -51,6 +51,54 @@ export class DomainService {
     }
   }
 
+  /**
+   * RFC 3915 delete: within the add grace period the domain is purged immediately;
+   * otherwise it enters the redemption grace period (pendingDelete) and can be restored.
+   */
+  async deleteWithGrace(
+    name: string,
+    registrarId: string
+  ): Promise<{ hardDeleted: boolean; domain?: DomainRecord }> {
+    const normalizedName = this.policy.normalizeDomainName(name).canonicalName;
+    const domain = await this.repository.findByName(normalizedName);
+
+    if (!domain || domain.registrarId !== registrarId) {
+      throw new DomainNotFoundOrUnauthorizedError(normalizedName);
+    }
+
+    if (withinAddGracePeriod(domain.createdAt)) {
+      await this.repository.delete(normalizedName, registrarId);
+      return { hardDeleted: true };
+    }
+
+    const updated = await this.repository.update(normalizedName, registrarId, {
+      statusesToAdd: ["pendingDelete"],
+      rgpStatus: "redemptionPeriod"
+    });
+
+    return { hardDeleted: false, domain: updated ?? undefined };
+  }
+
+  async restore(name: string, registrarId: string): Promise<DomainRecord> {
+    const normalizedName = this.policy.normalizeDomainName(name).canonicalName;
+    const domain = await this.repository.findByName(normalizedName);
+
+    if (!domain || domain.registrarId !== registrarId || domain.rgpStatus !== "redemptionPeriod") {
+      throw new DomainNotFoundOrUnauthorizedError(normalizedName);
+    }
+
+    const updated = await this.repository.update(normalizedName, registrarId, {
+      statusesToRemove: ["pendingDelete"],
+      rgpStatus: "pendingRestore"
+    });
+
+    if (!updated) {
+      throw new DomainNotFoundOrUnauthorizedError(normalizedName);
+    }
+
+    return updated;
+  }
+
   async renew(name: string, registrarId: string, periodYears?: number): Promise<DomainRecord> {
     const normalizedName = this.policy.normalizeDomainName(name).canonicalName;
     const domain = await this.repository.renew(normalizedName, registrarId, periodYears);
@@ -105,6 +153,19 @@ export class DomainNotFoundOrUnauthorizedError extends Error {
 }
 
 export { RegistryPolicyError };
+
+const ADD_GRACE_PERIOD_DAYS = 5;
+
+function withinAddGracePeriod(createdAt: string): boolean {
+  const created = new Date(createdAt).getTime();
+
+  if (Number.isNaN(created)) {
+    return false;
+  }
+
+  const ageMs = Date.now() - created;
+  return ageMs <= ADD_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
+}
 
 function normalizeUpdateInput(input: UpdateDomainInput): UpdateDomainInput {
   return {

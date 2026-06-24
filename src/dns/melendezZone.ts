@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { DomainRecord } from "../domain/types.js";
+import type { HostRecord } from "../host/types.js";
 import { DnssecKeyStore } from "./dnssecKeyStore.js";
 import { signZoneRecords } from "./dnssecSigner.js";
 import type { DnssecKeyConfig, DnsZoneOptions, ZoneRecord } from "./types.js";
@@ -11,9 +12,10 @@ const tldNameservers = ["ns1.melendez.", "ns2.melendez."];
 export function generateMelendezZone(
   domains: DomainRecord[],
   options: DnsZoneOptions,
-  keyConfig: DnssecKeyConfig
+  keyConfig: DnssecKeyConfig,
+  hosts: HostRecord[] = []
 ): string {
-  const records = unsignedZoneRecords(domains, options.dnssec);
+  const records = unsignedZoneRecords(domains, options.dnssec, hosts);
   const outputRecords = options.dnssec
     ? signZoneRecords(records, options, new DnssecKeyStore(keyConfig.keyPath).loadOrCreate(options.keyAction)).records
     : records;
@@ -21,12 +23,17 @@ export function generateMelendezZone(
   return renderZone(outputRecords);
 }
 
-export function unsignedZoneRecords(domains: DomainRecord[], includeDelegationDs = false): ZoneRecord[] {
+export function unsignedZoneRecords(
+  domains: DomainRecord[],
+  includeDelegationDs = false,
+  hosts: HostRecord[] = []
+): ZoneRecord[] {
   const serial = zoneSerial();
+  const hostGlue = buildHostGlueMap(hosts);
   const delegations = domains
     .filter((domain) => domain.name.endsWith(".melendez"))
     .sort((a, b) => a.name.localeCompare(b.name))
-    .flatMap((domain, index) => domainDelegationRecords(domain, index, includeDelegationDs));
+    .flatMap((domain, index) => domainDelegationRecords(domain, index, includeDelegationDs, hostGlue));
 
   return [
     { owner: "@", type: "SOA", ttl, rdata: `${tldNameservers[0]} hostmaster.${origin} ${serial} 3600 900 1209600 3600` },
@@ -38,7 +45,12 @@ export function unsignedZoneRecords(domains: DomainRecord[], includeDelegationDs
   ];
 }
 
-export function domainDelegationRecords(domain: DomainRecord, index: number, includeDs = false): ZoneRecord[] {
+export function domainDelegationRecords(
+  domain: DomainRecord,
+  index: number,
+  includeDs = false,
+  hostGlue: Map<string, ZoneRecord[]> = new Map()
+): ZoneRecord[] {
   const label = domain.name.replace(/\.melendez$/, "");
   const nameservers = domain.nameservers.length
     ? domain.nameservers.map(ensureTrailingDot)
@@ -59,12 +71,42 @@ export function domainDelegationRecords(domain: DomainRecord, index: number, inc
   for (const [nameserverIndex, nameserver] of nameservers.entries()) {
     const glueOwner = inBailiwickOwner(nameserver);
 
-    if (glueOwner) {
+    if (!glueOwner) {
+      continue;
+    }
+
+    const hostRecords = hostGlue.get(nameserver.toLowerCase().replace(/\.$/, ""));
+
+    if (hostRecords && hostRecords.length > 0) {
+      for (const hostRecord of hostRecords) {
+        records.push({ owner: glueOwner, type: hostRecord.type, ttl, rdata: hostRecord.rdata });
+      }
+    } else {
       records.push({ owner: glueOwner, type: "A", ttl, rdata: `192.0.2.${100 + index * 2 + nameserverIndex}` });
     }
   }
 
   return records;
+}
+
+function buildHostGlueMap(hosts: HostRecord[]): Map<string, ZoneRecord[]> {
+  const map = new Map<string, ZoneRecord[]>();
+
+  for (const host of hosts) {
+    const key = host.name.toLowerCase().replace(/\.$/, "");
+    const records = host.addresses.map((address) => ({
+      owner: key,
+      type: address.version === "v6" ? "AAAA" : "A",
+      ttl,
+      rdata: address.ip
+    }));
+
+    if (records.length > 0) {
+      map.set(key, records);
+    }
+  }
+
+  return map;
 }
 
 function childDsRecords(domain: DomainRecord, index: number): DomainRecord["dsRecords"] {

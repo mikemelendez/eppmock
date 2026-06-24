@@ -23,6 +23,7 @@ interface DomainRow {
   updated_at: string | null;
   expires_at: string;
   transfer_json: string | null;
+  rgp_status: string | null;
 }
 
 export class SqliteDomainRepository implements DomainRepository {
@@ -96,6 +97,7 @@ export class SqliteDomainRepository implements DomainRepository {
       registrantContact: input.registrantContact ?? domain.registrantContact,
       authInfo: input.authInfo ?? domain.authInfo,
       dsRecords: updateDsRecords(domain.dsRecords, input.dsRecordsToAdd, input.dsRecordsToRemove),
+      rgpStatus: resolveRgpStatus(domain.rgpStatus, input.rgpStatus),
       updatedAt: new Date().toISOString()
     };
 
@@ -211,8 +213,9 @@ export class SqliteDomainRepository implements DomainRepository {
           created_at,
           updated_at,
           expires_at,
-          transfer_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          transfer_json,
+          rgp_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(...domainValues(record));
   }
@@ -232,7 +235,8 @@ export class SqliteDomainRepository implements DomainRepository {
           created_at = ?,
           updated_at = ?,
           expires_at = ?,
-          transfer_json = ?
+          transfer_json = ?,
+          rgp_status = ?
         WHERE name = ?`
       )
       .run(...domainValues(record).slice(1), record.name);
@@ -265,7 +269,8 @@ export class SqliteDomainRepository implements DomainRepository {
       ["auth_info", "ALTER TABLE domains ADD COLUMN auth_info TEXT"],
       ["ds_records_json", "ALTER TABLE domains ADD COLUMN ds_records_json TEXT"],
       ["updated_at", "ALTER TABLE domains ADD COLUMN updated_at TEXT"],
-      ["transfer_json", "ALTER TABLE domains ADD COLUMN transfer_json TEXT"]
+      ["transfer_json", "ALTER TABLE domains ADD COLUMN transfer_json TEXT"],
+      ["rgp_status", "ALTER TABLE domains ADD COLUMN rgp_status TEXT"]
     ];
 
     for (const [column, sql] of migrations) {
@@ -289,6 +294,7 @@ function domainValues(record: DomainRecord): [
   string,
   string | null,
   string,
+  string | null,
   string | null
 ] {
   return [
@@ -304,7 +310,8 @@ function domainValues(record: DomainRecord): [
     record.createdAt,
     record.updatedAt ?? null,
     record.expiresAt,
-    record.transfer ? JSON.stringify(record.transfer) : null
+    record.transfer ? JSON.stringify(record.transfer) : null,
+    record.rgpStatus ?? null
   ];
 }
 
@@ -322,7 +329,8 @@ function mapDomainRow(row: DomainRow): DomainRecord {
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? undefined,
     expiresAt: row.expires_at,
-    transfer: parseTransfer(row.transfer_json)
+    transfer: parseTransfer(row.transfer_json),
+    rgpStatus: row.rgp_status ?? undefined
   });
 }
 
@@ -399,6 +407,14 @@ function parseTransfer(value: string | null): DomainRecord["transfer"] {
 
   const parsed = JSON.parse(value) as DomainRecord["transfer"];
   return parsed;
+}
+
+function resolveRgpStatus(current: string | undefined, next: string | null | undefined): string | undefined {
+  if (next === undefined) {
+    return current;
+  }
+
+  return next === null || next === "" ? undefined : next;
 }
 
 function normalizeDomainName(name: string): string {

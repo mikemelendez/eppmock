@@ -16,6 +16,16 @@ const secDnsAttributes = {
   "@_xsi:schemaLocation": "urn:ietf:params:xml:ns:secDNS-1.1 secDNS-1.1.xsd"
 };
 
+const rgpAttributes = {
+  "@_xmlns:rgp": "urn:ietf:params:xml:ns:rgp-1.0",
+  "@_xsi:schemaLocation": "urn:ietf:params:xml:ns:rgp-1.0 rgp-1.0.xsd"
+};
+
+const launchAttributes = {
+  "@_xmlns:launch": "urn:ietf:params:xml:ns:launch-1.0",
+  "@_xsi:schemaLocation": "urn:ietf:params:xml:ns:launch-1.0 launch-1.0.xsd"
+};
+
 export function domainCheckResponse(
   results: Array<{ name: string; available: boolean }>,
   transactionId?: string
@@ -107,23 +117,113 @@ export function domainInfoResponse(domain: DomainRecord, transactionId?: string)
             "domain:exDate": domain.expiresAt
           }
         },
-        extension: domain.dsRecords.length
-          ? {
-              "secDNS:infData": {
-                ...secDnsAttributes,
-                "secDNS:dsData": domain.dsRecords.map((record) => ({
-                  "secDNS:keyTag": record.keyTag,
-                  "secDNS:alg": record.algorithm,
-                  "secDNS:digestType": record.digestType,
-                  "secDNS:digest": record.digest
-                }))
-              }
-            }
-          : undefined,
+        extension: buildInfoExtension(domain),
         trID: {
           clTRID: transactionId,
           svTRID: randomUUID()
         }
+      }
+    }
+  });
+}
+
+function buildInfoExtension(domain: DomainRecord): Record<string, unknown> | undefined {
+  const extension: Record<string, unknown> = {};
+
+  if (domain.dsRecords.length) {
+    extension["secDNS:infData"] = {
+      ...secDnsAttributes,
+      "secDNS:dsData": domain.dsRecords.map((record) => ({
+        "secDNS:keyTag": record.keyTag,
+        "secDNS:alg": record.algorithm,
+        "secDNS:digestType": record.digestType,
+        "secDNS:digest": record.digest
+      }))
+    };
+  }
+
+  if (domain.rgpStatus) {
+    extension["rgp:infData"] = {
+      ...rgpAttributes,
+      "rgp:rgpStatus": { "@_s": domain.rgpStatus }
+    };
+  }
+
+  return Object.keys(extension).length > 0 ? extension : undefined;
+}
+
+export function domainRestoreResponse(domain: DomainRecord, transactionId?: string): string {
+  return buildEppXml({
+    epp: {
+      ...eppAttributes,
+      response: {
+        result: { "@_code": 1000, msg: "Command completed successfully" },
+        extension: {
+          "rgp:upData": {
+            ...rgpAttributes,
+            "rgp:rgpStatus": { "@_s": domain.rgpStatus ?? "pendingRestore" }
+          }
+        },
+        trID: { clTRID: transactionId, svTRID: randomUUID() }
+      }
+    }
+  });
+}
+
+export function domainLaunchCreateResponse(
+  domainName: string,
+  phase: string,
+  applicationId: string,
+  transactionId?: string
+): string {
+  return buildEppXml({
+    epp: {
+      ...eppAttributes,
+      response: {
+        result: { "@_code": 1000, msg: "Command completed successfully" },
+        resData: {
+          "domain:creData": {
+            ...domainAttributes,
+            "domain:name": domainName
+          }
+        },
+        extension: {
+          "launch:creData": {
+            ...launchAttributes,
+            "launch:phase": phase,
+            "launch:applicationID": applicationId
+          }
+        },
+        trID: { clTRID: transactionId, svTRID: randomUUID() }
+      }
+    }
+  });
+}
+
+export function domainLaunchCheckResponse(
+  results: Array<{ name: string; claimKey?: string }>,
+  phase: string,
+  transactionId?: string
+): string {
+  return buildEppXml({
+    epp: {
+      ...eppAttributes,
+      response: {
+        result: { "@_code": 1000, msg: "Command completed successfully" },
+        extension: {
+          "launch:chkData": {
+            ...launchAttributes,
+            "@_phase": phase,
+            "launch:cd": results.map((result) => ({
+              "launch:name": {
+                "@_exists": result.claimKey ? "1" : "0",
+                "#text": result.name
+              },
+              "launch:claimKey": result.claimKey
+            }))
+          }
+        },
+        trID: { clTRID: transactionId, svTRID: randomUUID() }
       }
     }
   });

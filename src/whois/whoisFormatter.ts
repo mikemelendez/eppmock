@@ -31,7 +31,7 @@ export function formatWhoisResponse(query: string, domain: DomainRecord | null, 
   if (!domain) {
     return {
       query: canonicalName,
-      response: [`No match for "${canonicalName}"`, ""].join("\r\n")
+      response: [`No match for "${canonicalName}"`, "", ...disclaimerFooter()].join("\r\n")
     };
   }
 
@@ -53,15 +53,25 @@ export function formatWhoisResponse(query: string, domain: DomainRecord | null, 
     ),
     "",
     `>>> Last update of WHOIS database: ${new Date().toISOString()} <<<`,
-    ""
+    "",
+    ...disclaimerFooter()
   ].filter((line) => line !== "");
-
-  if (unicodeName === canonicalName) {
-    return { query: canonicalName, response: `${lines.join("\r\n")}\r\n` };
-  }
 
   return {
     query: canonicalName,
     response: `${lines.join("\r\n")}\r\n`
   };
+}
+
+/**
+ * ICANN Specification 4 requires a limited-data disclaimer pointing registrants to
+ * the centralized lookup service.
+ */
+function disclaimerFooter(): string[] {
+  return [
+    "% The registration data available in this service is limited. Additional data may be",
+    "% available at https://lookup.icann.org",
+    "% For more information on WHOIS status codes, please visit https://icann.org/epp",
+    ""
+  ];
 }

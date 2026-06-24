@@ -1,6 +1,14 @@
 import type { AppConfig } from "../config.js";
-import { getCommand, node, text } from "./commandExtractor.js";
-import { authenticationError, commandCompleted, syntaxError } from "./responses.js";
+import { childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
+import { supportedObjectUris } from "./responses.js";
+import {
+  authenticationError,
+  commandCompleted,
+  syntaxError,
+  unimplementedObjectService,
+  unimplementedOption,
+  unimplementedProtocolVersion
+} from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
 
 export class AuthCommandHandler implements CommandHandler {
@@ -29,6 +37,27 @@ export class AuthCommandHandler implements CommandHandler {
     const login = node(value);
     const clid = text(login?.clID);
     const password = text(login?.pw);
+
+    const options = node(login?.options);
+    const version = text(options?.version);
+    const lang = text(options?.lang);
+
+    // The XML parser may coerce "1.0" to the number 1, so accept both forms.
+    if (version !== undefined && version !== "1.0" && version !== "1") {
+      return unimplementedProtocolVersion(context.transactionId);
+    }
+
+    if (lang !== undefined && lang !== "en") {
+      return unimplementedOption(context.transactionId);
+    }
+
+    const requestedObjects = stringValues(childValue(node(login?.svcs), "objURI"));
+    const unsupportedObject = requestedObjects.find((uri) => !supportedObjectUris.includes(uri));
+
+    if (unsupportedObject) {
+      return unimplementedObjectService(context.transactionId);
+    }
+
     const user = this.config.authUsers.find((authUser) => authUser.clid === clid);
 
     if (!user || password !== user.password) {

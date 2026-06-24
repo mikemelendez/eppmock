@@ -99,6 +99,8 @@ function testConfig(dnssecKeyPath: string, overrides: Partial<AppConfig> = {}): 
     whoisPort: 8043,
     controlHost: "127.0.0.1",
     controlPort: 8080,
+    rdapHost: "127.0.0.1",
+    rdapPort: 8090,
     greetingServerId: "epp-testing-tool",
     registryTld: "melendez",
     authUsers: defaultAuthUsers,

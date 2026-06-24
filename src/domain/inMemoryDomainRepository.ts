@@ -65,6 +65,7 @@ export class InMemoryDomainRepository implements DomainRepository {
       registrantContact: input.registrantContact ?? domain.registrantContact,
       authInfo: input.authInfo ?? domain.authInfo,
       dsRecords: updateDsRecords(domain.dsRecords, input.dsRecordsToAdd, input.dsRecordsToRemove),
+      rgpStatus: resolveRgpStatus(domain.rgpStatus, input.rgpStatus),
       updatedAt: new Date().toISOString()
     };
 
@@ -158,6 +159,14 @@ export class InMemoryDomainRepository implements DomainRepository {
       });
     }
   }
+}
+
+function resolveRgpStatus(current: string | undefined, next: string | null | undefined): string | undefined {
+  if (next === undefined) {
+    return current;
+  }
+
+  return next === null || next === "" ? undefined : next;
 }
 
 function normalizeDomainName(name: string): string {

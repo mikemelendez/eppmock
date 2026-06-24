@@ -27,10 +27,14 @@ The EPP protocol does not depend on the storage layer. To move from SQLite to Po
 - `domain:delete`
 - `domain:renew`
 - `domain:transfer` with `request`, `approve`, `reject`, `cancel`, and `query`
-- `poll`
+- `contact:check`, `contact:create`, `contact:info`, `contact:update`, `contact:delete` (RFC 5733)
+- `host:check`, `host:create`, `host:info`, `host:update`, `host:delete` with IPv4/IPv6 glue (RFC 5732)
+- `poll` with a per-registrar `<msgQ>` message queue (1301/ack)
 - `hello`
 
-Domain records support nameservers, registrant contact, admin/tech/billing contacts, `authInfo`, creation/update/expiration timestamps, transfer state, and statuses such as:
+EPP extensions: `secDNS` (RFC 5910), `rgp` (RFC 3915 redemption/restore), and `launch` (RFC 8334 Sunrise/Claims). Login validates `<version>`/`<lang>`/`<svcs>` and all responses echo `clTRID`.
+
+Domain records support nameservers, registrant contact, admin/tech/billing contacts, `authInfo`, creation/update/expiration timestamps, transfer state, RGP status, and statuses such as:
 
 - `clientTransferProhibited`
 - `clientUpdateProhibited`
@@ -50,6 +54,8 @@ Available variables:
 - `WHOIS_PORT`, default `43`
 - `CONTROL_HOST`, default `127.0.0.1`
 - `CONTROL_PORT`, default `8080`
+- `RDAP_HOST`, default `127.0.0.1`
+- `RDAP_PORT`, default `8090`
 - `GREETING_SERVER_ID`, default `epp-testing-tool`
 - `REGISTRY_TLD`, default `melendez`
 - `EPP_USERS`, optional JSON array of `{ "clid": "...", "password": "..." }`
@@ -171,6 +177,26 @@ STORAGE_MODE=memory npm run dev
 The `POST /reset` endpoint deletes persisted domains and loads the submitted fixtures, so use it carefully if you want to keep existing data.
 
 DNSSEC KSK/ZSK material is stored at `DNSSEC_KEY_PATH`. Keep that file in persistent storage and back it up with the SQLite database.
+
+## RDAP
+
+An RDAP (Registration Data Access Protocol) HTTP service runs on `RDAP_PORT` (default `8090`) and returns RFC 9083 JSON with the `application/rdap+json` content type:
+
+- `GET /domain/{name}` - domain object (status, events, nameservers, `secureDNS`, registrar entity)
+- `GET /nameserver/{name}` - nameserver object with `ipAddresses.v4` / `ipAddresses.v6`
+- `GET /entity/{handle}` - contact (registrant) or registrar entity with a jCard `vcardArray`
+- `GET /help` - service help and notices
+
+Unknown objects return an RDAP error object (404), and malformed queries return 400. Every response includes `rdapConformance`.
+
+```bash
+curl http://127.0.0.1:8090/domain/example.melendez
+curl http://127.0.0.1:8090/nameserver/ns1.example.melendez
+```
+
+## Compliance
+
+A gap analysis mapping this tool against the technically relevant parts of the ICANN Base Registry Agreement (Specifications 6, 4, and 10) is in `docs/ICANN_COMPLIANCE.md`. The technical remediation backlog has been implemented: RDAP, EPP contact (5733) and host (5732) objects, RGP (3915), launch phase (8334), EPP core polish (clTRID echo, login validation, poll `<msgQ>`), the WHOIS limited-data disclaimer, a Latin IDN table, and IPv4/IPv6 glue. The legal/operational provisions remain out of scope.
 
 ## AWS Deployment
 

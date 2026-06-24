@@ -12,6 +12,7 @@ export interface DomainRecord {
   updatedAt?: string;
   expiresAt: string;
   transfer?: DomainTransfer;
+  rgpStatus?: string;
 }
 
 export interface CreateDomainInput {
@@ -36,6 +37,7 @@ export interface UpdateDomainInput {
   authInfo?: string;
   dsRecordsToAdd?: DomainDsRecord[];
   dsRecordsToRemove?: DomainDsRecord[];
+  rgpStatus?: string | null;
 }
 
 export interface DomainContact {

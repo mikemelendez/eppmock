@@ -8,7 +8,10 @@ import {
   domainCheckResponse,
   domainCreateResponse,
   domainInfoResponse,
+  domainLaunchCheckResponse,
+  domainLaunchCreateResponse,
   domainRenewResponse,
+  domainRestoreResponse,
   domainTransferResponse,
   objectDoesNotExist,
   objectExists,
@@ -16,12 +19,19 @@ import {
   parameterValuePolicyError
 } from "./domainResponses.js";
 import { childNode, childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
+import type { PollMessageRepository } from "./pollMessageRepository.js";
 import { commandCompleted, syntaxError } from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
 import { asArray } from "./xml.js";
 
+const LAUNCH_NS = "urn:ietf:params:xml:ns:launch-1.0";
+const RGP_NS = "urn:ietf:params:xml:ns:rgp-1.0";
+
 export class DomainCommandHandler implements CommandHandler {
-  constructor(private readonly domains: DomainService) {}
+  constructor(
+    private readonly domains: DomainService,
+    private readonly pollMessages?: PollMessageRepository
+  ) {}
 
   async handle(document: Record<string, unknown>, context: CommandContext): Promise<string> {
     const command = getCommand(document);
@@ -31,7 +41,7 @@ export class DomainCommandHandler implements CommandHandler {
     }
 
     if ("check" in command) {
-      return this.check(command.check, context);
+      return this.check(command.check, context, node(command.extension));
     }
 
     if ("create" in command) {
@@ -61,7 +71,7 @@ export class DomainCommandHandler implements CommandHandler {
     return syntaxError(context.transactionId);
   }
 
-  private async check(value: unknown, context: CommandContext): Promise<string> {
+  private async check(value: unknown, context: CommandContext, extension?: Record<string, unknown>): Promise<string> {
     const domainCheck = childNode(value, "check");
     const names = stringValues(childValue(domainCheck, "name"));
 
@@ -71,6 +81,21 @@ export class DomainCommandHandler implements CommandHandler {
 
     try {
       const results = await this.domains.checkAvailability(names);
+
+      const launchCheck = namespacedNode(extension, LAUNCH_NS, "check");
+
+      if (launchCheck) {
+        const phase = text(namespacedValue(launchCheck, LAUNCH_NS, "phase")) ?? "claims";
+        return domainLaunchCheckResponse(
+          names.map((name) => ({
+            name,
+            claimKey: name.toLowerCase().includes("claim") ? `claim-key-${name}` : undefined
+          })),
+          phase,
+          context.transactionId
+        );
+      }
+
       return domainCheckResponse(results, context.transactionId);
     } catch (error) {
       if (error instanceof RegistryPolicyError) {
@@ -111,6 +136,14 @@ export class DomainCommandHandler implements CommandHandler {
         dsRecords
       });
 
+      const launchCreate = namespacedNode(extension, LAUNCH_NS, "create");
+
+      if (launchCreate) {
+        const phase = text(namespacedValue(launchCreate, LAUNCH_NS, "phase")) ?? "sunrise";
+        const applicationId = `${domain.name}-${Date.now()}`;
+        return domainLaunchCreateResponse(domain.name, phase, applicationId, context.transactionId);
+      }
+
       return domainCreateResponse(domain, context.transactionId);
     } catch (error) {
       if (error instanceof DomainAlreadyExistsError) {
@@ -135,6 +168,25 @@ export class DomainCommandHandler implements CommandHandler {
 
     if (!name || !context.session.clid) {
       return syntaxError(context.transactionId);
+    }
+
+    const rgpRestore = namespacedNode(namespacedNode(extension, RGP_NS, "update"), RGP_NS, "restore");
+
+    if (rgpRestore) {
+      try {
+        const restored = await this.domains.restore(name, context.session.clid);
+        return domainRestoreResponse(restored, context.transactionId);
+      } catch (error) {
+        if (error instanceof DomainNotFoundOrUnauthorizedError) {
+          return objectNotAuthorized(context.transactionId);
+        }
+
+        if (error instanceof RegistryPolicyError) {
+          return parameterValuePolicyError(context.transactionId);
+        }
+
+        throw error;
+      }
     }
 
     try {
@@ -201,7 +253,7 @@ export class DomainCommandHandler implements CommandHandler {
     }
 
     try {
-      await this.domains.delete(name, context.session.clid);
+      await this.domains.deleteWithGrace(name, context.session.clid);
       return commandCompleted(context.transactionId);
     } catch (error) {
       if (error instanceof DomainNotFoundOrUnauthorizedError) {
@@ -253,6 +305,21 @@ export class DomainCommandHandler implements CommandHandler {
 
     try {
       const domain = await this.domains.transfer(name, operation, context.session.clid);
+
+      if (operation === "request" && this.pollMessages) {
+        this.pollMessages.enqueue({
+          registrarId: domain.registrarId,
+          text: `Transfer requested for ${domain.name}`,
+          resData: {
+            "domain:trnData": {
+              "@_xmlns:domain": "urn:ietf:params:xml:ns:domain-1.0",
+              "domain:name": domain.name,
+              "domain:trStatus": domain.transfer?.status ?? "pending"
+            }
+          }
+        });
+      }
+
       return domainTransferResponse(domain, context.transactionId);
     } catch (error) {
       if (error instanceof DomainNotFoundOrUnauthorizedError) {
@@ -347,6 +414,57 @@ function parseDsRecords(value: unknown, section: "add" | "rem" = "add"): Array<{
       }
     ];
   });
+}
+
+function namespacedNode(
+  value: Record<string, unknown> | undefined,
+  namespaceUri: string,
+  localName: string
+): Record<string, unknown> | undefined {
+  return node(namespacedValue(value, namespaceUri, localName));
+}
+
+/**
+ * Finds a child whose element belongs to a specific XML namespace, disambiguating prefixes
+ * that share a local name (e.g. secDNS:create vs launch:create).
+ */
+function namespacedValue(
+  value: Record<string, unknown> | undefined,
+  namespaceUri: string,
+  localName: string
+): unknown {
+  if (!value) {
+    return undefined;
+  }
+
+  const prefixes = namespacePrefixes(value, namespaceUri);
+  const keys = Object.keys(value);
+
+  for (const key of keys) {
+    const [prefix, local] = key.includes(":") ? key.split(":") : ["", key];
+
+    if (local !== localName) {
+      continue;
+    }
+
+    if (prefixes.length === 0 || prefixes.includes(prefix) || prefix === "") {
+      return value[key];
+    }
+  }
+
+  return undefined;
+}
+
+function namespacePrefixes(value: Record<string, unknown>, namespaceUri: string): string[] {
+  const prefixes: string[] = [];
+
+  for (const [key, attrValue] of Object.entries(value)) {
+    if (key.startsWith("@_xmlns:") && attrValue === namespaceUri) {
+      prefixes.push(key.slice("@_xmlns:".length));
+    }
+  }
+
+  return prefixes;
 }
 
 function prefixedNode(value: Record<string, unknown> | undefined, localName: string): Record<string, unknown> | undefined {
