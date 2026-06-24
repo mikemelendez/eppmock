@@ -28,6 +28,17 @@ export function startWhoisServer(
     });
   });
 
+  server.on("error", (error: NodeJS.ErrnoException) => {
+    const hint =
+      error.code === "EACCES"
+        ? ` (port ${config.whoisPort} is privileged; set WHOIS_PORT to a value above 1024 or run with elevated privileges)`
+        : "";
+    console.error(
+      `WHOIS server failed to start on ${config.whoisHost}:${config.whoisPort}${hint}:`,
+      error.message
+    );
+  });
+
   server.listen(config.whoisPort, config.whoisHost, () => {
     console.log(`WHOIS listening on ${config.whoisHost}:${config.whoisPort}`);
   });

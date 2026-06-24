@@ -28,6 +28,18 @@ export function startEppServer(config: AppConfig, router: CommandRouter): net.Se
     });
   });
 
+  server.on("error", (error: NodeJS.ErrnoException) => {
+    const hint =
+      error.code === "EADDRINUSE"
+        ? ` (port ${config.eppPort} is already in use; on macOS the AirPlay Receiver and Control Center listen on 7000 \u2014 disable it or set EPP_PORT)`
+        : "";
+    console.error(
+      `EPP server failed to start on ${config.eppHost}:${config.eppPort}${hint}:`,
+      error.message
+    );
+    process.exitCode = 1;
+  });
+
   server.listen(config.eppPort, config.eppHost, () => {
     console.log(`EPP testing tool listening on ${config.eppHost}:${config.eppPort}`);
   });
