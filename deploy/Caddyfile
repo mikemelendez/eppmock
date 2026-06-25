@@ -2,7 +2,8 @@ eppmock.melendez.mx {
   encode zstd gzip
 
   # RDAP on the main host so CI/production tests do not require a separate DNS record.
-  handle_path /rdap/* {
+  handle /rdap/* {
+    uri strip_prefix /rdap
     reverse_proxy app:8090
   }
 

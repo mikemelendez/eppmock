@@ -66,6 +66,7 @@ jobs:
             EOF
 
             docker compose -f deploy/docker-compose.aws.yml up -d --build
+            docker compose -f deploy/docker-compose.aws.yml restart caddy
             sleep 5
 
             if ! docker compose -f deploy/docker-compose.aws.yml ps app | grep -q "Up"; then
