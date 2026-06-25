@@ -14,7 +14,19 @@ test("normalizes second-level .melendez names and IDNs", () => {
 
 test("rejects names outside registry policy", () => {
   const policy = new RegistryPolicy("melendez");
-  const invalidNames = ["example.com", "melendez", ".melendez", "foo.bar.melendez", "-bad.melendez", "bad-.melendez"];
+  const invalidNames = [
+    "example.com",
+    "melendez",
+    ".melendez",
+    "foo.bar.melendez",
+    "-bad.melendez",
+    "bad-.melendez",
+    "nic.melendez",
+    "whois.melendez",
+    "www.melendez",
+    "ab.melendez",
+    "nike.melendez"
+  ];
 
   for (const name of invalidNames) {
     assert.throws(() => policy.normalizeDomainName(name), RegistryPolicyError);

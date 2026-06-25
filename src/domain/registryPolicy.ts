@@ -71,6 +71,10 @@ export class RegistryPolicy {
       throw new RegistryPolicyError(input, "domain label contains code points outside the IDN table");
     }
 
+    if (isReservedLabel(label)) {
+      throw new RegistryPolicyError(input, "domain label is reserved by registry policy");
+    }
+
     return {
       input,
       canonicalName,
@@ -133,4 +137,26 @@ const idnLabelPattern = new RegExp(`^[a-z0-9-${IDN_LATIN_EXTRA}]+$`, "u");
 
 function isAllowedIdnLabel(unicodeLabel: string): boolean {
   return idnLabelPattern.test(unicodeLabel);
+}
+
+/** ICANN Specification 5-style reserved labels for a testing registry. */
+const TECHNICAL_RESERVED_LABELS = new Set([
+  "nic",
+  "whois",
+  "rdap",
+  "www",
+  "rdds",
+  "registry",
+  "registrar"
+]);
+
+/** Sample brand strings blocked to simulate sunrise/brand protection policy. */
+const BRAND_RESERVED_LABELS = new Set(["nike", "google", "apple", "amazon", "microsoft"]);
+
+function isReservedLabel(label: string): boolean {
+  if (label.length === 2) {
+    return true;
+  }
+
+  return TECHNICAL_RESERVED_LABELS.has(label) || BRAND_RESERVED_LABELS.has(label);
 }
