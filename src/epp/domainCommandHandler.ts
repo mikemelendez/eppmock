@@ -318,9 +318,10 @@ export class DomainCommandHandler implements CommandHandler {
           return objectDoesNotExist(context.transactionId);
         }
 
+        const isSponsoringRegistrar = context.session.clid === target.registrarId;
         const providedAuthInfo = text(childValue(childNode(domainTransfer, "authInfo"), "pw"));
 
-        if (target.authInfo && providedAuthInfo !== target.authInfo) {
+        if (!isSponsoringRegistrar && target.authInfo && providedAuthInfo !== target.authInfo) {
           return resultResponse(2202, "Invalid authorization information", context.transactionId);
         }
       }
