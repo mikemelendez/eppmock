@@ -48,12 +48,12 @@ function isProhibitionLiftUpdate(input: Record<string, unknown>, prohibited: Set
   return true;
 }
 
-export function assertCanUpdate(statuses: string[], input: Record<string, unknown> = {}): void {
+export function assertCanUpdate(statuses: string[], input: object = {}): void {
   if (!hasAnyStatus(statuses, UPDATE_PROHIBITED)) {
     return;
   }
 
-  if (isProhibitionLiftUpdate(input, UPDATE_PROHIBITED)) {
+  if (isProhibitionLiftUpdate(input as Record<string, unknown>, UPDATE_PROHIBITED)) {
     return;
   }
 
