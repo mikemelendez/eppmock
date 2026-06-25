@@ -2,7 +2,8 @@ import {
   ContactAlreadyExistsError,
   ContactNotFoundOrUnauthorizedError,
   ContactService,
-  ContactValidationError
+  ContactValidationError,
+  ObjectStatusProhibitsOperationError
 } from "../contact/contactService.js";
 import type { ContactPostalInfo } from "../contact/types.js";
 import { childNode, childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
@@ -14,7 +15,7 @@ import {
   contactObjectDoesNotExist,
   contactObjectExists
 } from "./contactResponses.js";
-import { commandCompleted, syntaxError } from "./responses.js";
+import { commandCompleted, objectStatusProhibitsOperation, syntaxError } from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
 import { asArray } from "./xml.js";
 
@@ -140,6 +141,10 @@ export class ContactCommandHandler implements CommandHandler {
         return contactNotAuthorized(context.transactionId);
       }
 
+      if (error instanceof ObjectStatusProhibitsOperationError) {
+        return objectStatusProhibitsOperation(context.transactionId);
+      }
+
       throw error;
     }
   }
@@ -157,6 +162,10 @@ export class ContactCommandHandler implements CommandHandler {
     } catch (error) {
       if (error instanceof ContactNotFoundOrUnauthorizedError) {
         return contactNotAuthorized(context.transactionId);
+      }
+
+      if (error instanceof ObjectStatusProhibitsOperationError) {
+        return objectStatusProhibitsOperation(context.transactionId);
       }
 
       throw error;

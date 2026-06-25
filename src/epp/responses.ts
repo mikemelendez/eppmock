@@ -106,6 +106,10 @@ export function unimplementedObjectService(transactionId?: string): string {
   return resultResponse(2307, "Unimplemented object service", transactionId);
 }
 
+export function objectStatusProhibitsOperation(transactionId?: string): string {
+  return resultResponse(2304, "Object status prohibits operation", transactionId);
+}
+
 export function pollNoMessages(transactionId?: string): string {
   return resultResponse(1300, "Command completed successfully; no messages", transactionId);
 }

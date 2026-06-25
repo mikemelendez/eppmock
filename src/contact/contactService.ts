@@ -1,9 +1,16 @@
+import {
+  assertCanDelete,
+  assertCanUpdate,
+  ObjectStatusProhibitsOperationError
+} from "../epp/objectStatusPolicy.js";
 import type {
   ContactRecord,
   ContactRepository,
   CreateContactInput,
   UpdateContactInput
 } from "./types.js";
+
+export { ObjectStatusProhibitsOperationError };
 
 export class ContactValidationError extends Error {}
 
@@ -53,7 +60,15 @@ export class ContactService {
   }
 
   async update(id: string, registrarId: string, input: UpdateContactInput): Promise<ContactRecord> {
-    const contact = await this.repository.update(normalizeId(id), registrarId, input);
+    const normalizedId = normalizeId(id);
+    const existing = await this.repository.findById(normalizedId);
+
+    if (!existing || existing.registrarId !== registrarId) {
+      throw new ContactNotFoundOrUnauthorizedError(normalizedId);
+    }
+
+    assertCanUpdate(existing.statuses, input);
+    const contact = await this.repository.update(normalizedId, registrarId, input);
 
     if (!contact) {
       throw new ContactNotFoundOrUnauthorizedError(normalizeId(id));
@@ -63,7 +78,15 @@ export class ContactService {
   }
 
   async delete(id: string, registrarId: string): Promise<void> {
-    const deleted = await this.repository.delete(normalizeId(id), registrarId);
+    const normalizedId = normalizeId(id);
+    const existing = await this.repository.findById(normalizedId);
+
+    if (!existing || existing.registrarId !== registrarId) {
+      throw new ContactNotFoundOrUnauthorizedError(normalizedId);
+    }
+
+    assertCanDelete(existing.statuses);
+    const deleted = await this.repository.delete(normalizedId, registrarId);
 
     if (!deleted) {
       throw new ContactNotFoundOrUnauthorizedError(normalizeId(id));

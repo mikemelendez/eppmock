@@ -3,7 +3,8 @@ import {
   HostAlreadyExistsError,
   HostNotFoundOrUnauthorizedError,
   HostService,
-  HostValidationError
+  HostValidationError,
+  ObjectStatusProhibitsOperationError
 } from "../host/hostService.js";
 import type { HostAddress } from "../host/types.js";
 import { childNode, childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
@@ -16,7 +17,7 @@ import {
   hostObjectExists,
   hostParameterPolicyError
 } from "./hostResponses.js";
-import { commandCompleted, syntaxError } from "./responses.js";
+import { commandCompleted, objectStatusProhibitsOperation, syntaxError } from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
 import { asArray } from "./xml.js";
 
@@ -155,6 +156,10 @@ export class HostCommandHandler implements CommandHandler {
         return hostNotAuthorized(context.transactionId);
       }
 
+      if (error instanceof ObjectStatusProhibitsOperationError) {
+        return objectStatusProhibitsOperation(context.transactionId);
+      }
+
       if (error instanceof HostValidationError) {
         return hostParameterPolicyError(context.transactionId);
       }
@@ -176,6 +181,10 @@ export class HostCommandHandler implements CommandHandler {
     } catch (error) {
       if (error instanceof HostNotFoundOrUnauthorizedError) {
         return hostNotAuthorized(context.transactionId);
+      }
+
+      if (error instanceof ObjectStatusProhibitsOperationError) {
+        return objectStatusProhibitsOperation(context.transactionId);
       }
 
       if (error instanceof HostValidationError) {

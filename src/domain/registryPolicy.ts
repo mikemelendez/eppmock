@@ -153,10 +153,66 @@ const TECHNICAL_RESERVED_LABELS = new Set([
 /** Sample brand strings blocked to simulate sunrise/brand protection policy. */
 const BRAND_RESERVED_LABELS = new Set(["nike", "google", "apple", "amazon", "microsoft"]);
 
+/** English country and territory names blocked per ICANN Specification 5 (sample set for testing). */
+const COUNTRY_RESERVED_LABELS = new Set([
+  "afghanistan",
+  "albania",
+  "algeria",
+  "argentina",
+  "australia",
+  "austria",
+  "belgium",
+  "brazil",
+  "canada",
+  "chile",
+  "china",
+  "colombia",
+  "cuba",
+  "denmark",
+  "egypt",
+  "england",
+  "finland",
+  "france",
+  "germany",
+  "greece",
+  "india",
+  "indonesia",
+  "ireland",
+  "israel",
+  "italy",
+  "japan",
+  "kenya",
+  "korea",
+  "mexico",
+  "netherlands",
+  "nigeria",
+  "norway",
+  "peru",
+  "poland",
+  "portugal",
+  "russia",
+  "scotland",
+  "singapore",
+  "spain",
+  "sweden",
+  "switzerland",
+  "taiwan",
+  "thailand",
+  "turkey",
+  "ukraine",
+  "usa",
+  "vietnam",
+  "wales"
+]);
+
 function isReservedLabel(label: string): boolean {
   if (label.length === 2) {
     return true;
   }
 
-  return TECHNICAL_RESERVED_LABELS.has(label) || BRAND_RESERVED_LABELS.has(label);
+  return (
+    TECHNICAL_RESERVED_LABELS.has(label) ||
+    BRAND_RESERVED_LABELS.has(label) ||
+    COUNTRY_RESERVED_LABELS.has(label)
+  );
 }

@@ -1,5 +1,14 @@
+import {
+  assertCanDelete,
+  assertCanRenew,
+  assertCanTransferRequest,
+  assertCanUpdate,
+  ObjectStatusProhibitsOperationError
+} from "../epp/objectStatusPolicy.js";
 import type { CreateDomainInput, DomainRecord, DomainRepository, UpdateDomainInput } from "./types.js";
 import { canonicalHostName, RegistryPolicy, RegistryPolicyError } from "./registryPolicy.js";
+
+export { ObjectStatusProhibitsOperationError };
 
 /** ICANN-style registration period cap enforced on create and renew. */
 export const MAX_REGISTRATION_YEARS = 10;
@@ -37,7 +46,15 @@ export class DomainService {
 
   async update(name: string, registrarId: string, input: UpdateDomainInput): Promise<DomainRecord> {
     const normalizedName = this.policy.normalizeDomainName(name).canonicalName;
-    const domain = await this.repository.update(normalizedName, registrarId, normalizeUpdateInput(input));
+    const normalizedInput = normalizeUpdateInput(input);
+    const existing = await this.repository.findByName(normalizedName);
+
+    if (!existing || existing.registrarId !== registrarId) {
+      throw new DomainNotFoundOrUnauthorizedError(normalizedName);
+    }
+
+    assertCanUpdate(existing.statuses, normalizedInput);
+    const domain = await this.repository.update(normalizedName, registrarId, normalizedInput);
 
     if (!domain) {
       throw new DomainNotFoundOrUnauthorizedError(normalizedName);
@@ -69,6 +86,8 @@ export class DomainService {
     if (!domain || domain.registrarId !== registrarId) {
       throw new DomainNotFoundOrUnauthorizedError(normalizedName);
     }
+
+    assertCanDelete(domain.statuses);
 
     if (withinAddGracePeriod(domain.createdAt)) {
       await this.repository.delete(normalizedName, registrarId);
@@ -106,6 +125,13 @@ export class DomainService {
   async renew(name: string, registrarId: string, periodYears?: number): Promise<DomainRecord> {
     const normalizedName = this.policy.normalizeDomainName(name).canonicalName;
     const period = normalizePeriodYears(periodYears, normalizedName);
+    const existing = await this.repository.findByName(normalizedName);
+
+    if (!existing || existing.registrarId !== registrarId) {
+      throw new DomainNotFoundOrUnauthorizedError(normalizedName);
+    }
+
+    assertCanRenew(existing.statuses);
     const domain = await this.repository.renew(normalizedName, registrarId, period);
 
     if (!domain) {
@@ -121,6 +147,17 @@ export class DomainService {
     registrarId: string
   ): Promise<DomainRecord> {
     const normalizedName = this.policy.normalizeDomainName(name).canonicalName;
+
+    if (operation === "request") {
+      const existing = await this.repository.findByName(normalizedName);
+
+      if (!existing) {
+        throw new DomainNotFoundOrUnauthorizedError(normalizedName);
+      }
+
+      assertCanTransferRequest(existing.statuses);
+    }
+
     const domain = await this.repository.setTransfer(normalizedName, operation, registrarId);
 
     if (!domain) {

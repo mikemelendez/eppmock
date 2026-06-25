@@ -87,9 +87,10 @@ EPP core (RFC 5730) - implemented:
 
 RFC 5731 remaining minor gaps:
 
-- `domain:transfer` and `domain:info` still do not enforce `authInfo` authorization
-  ([src/epp/domainCommandHandler.ts](../src/epp/domainCommandHandler.ts)).
-- Pending statuses are representable but not fully driven by a complete state machine.
+- Pending statuses beyond client/server prohibitions are representable but not fully driven by a complete state machine (e.g. `pendingCreate`).
+- `domain:check` with launch claims returns synthetic claim keys; it does not integrate with an external TMCH.
+
+Status prohibitions (RFC 5731/5732/5733): `clientUpdateProhibited`, `serverUpdateProhibited`, `clientDeleteProhibited`, `serverDeleteProhibited`, and `clientTransferProhibited`/`serverTransferProhibited` are enforced in [src/epp/objectStatusPolicy.ts](../src/epp/objectStatusPolicy.ts) and wired through the domain, contact, and host services. Blocked operations return EPP result code **2304**. An update that only removes an update-prohibition status is permitted.
 
 ### 2.2 DNSSEC - DNS side (Specification 6, Section 1.3)
 
@@ -139,7 +140,7 @@ N/A with the reason.
 | Specification 1 (Consensus & Temporary Policies) | Binds an operator to ICANN policy processes; not a technical feature. |
 | Specification 2 (Data Escrow) | Requires a third-party Escrow Agent, OpenPGP/RFC 9580 deposits, daily schedules, ICANN as beneficiary. |
 | Specification 3 (Monthly Reporting) | Per-registrar transaction + activity reports submitted to ICANN via their API. |
-| Specification 5 (Reserved Names) | Reservation of labels (NIC, RDDS, RDAP, WHOIS, WWW, two-char, country names, etc.) - registry policy. |
+| Specification 5 (Reserved Names) | Partial (mock) | Technical labels (`nic`, `whois`, `rdap`, `www`, `rdds`, `registry`, `registrar`), all two-character SLDs, sample brand strings, and a representative English country-name set are blocked in [src/domain/registryPolicy.ts](../src/domain/registryPolicy.ts). A full ISO/country list and sunrise/claims integration remain out of scope. |
 | Specification 7 (Rights Protection Mechanisms) | Trademark Clearinghouse, Sunrise, Claims, URS/UDRP - external programs. (The EPP side, RFC 8334, is tracked in section 2.1.) |
 | Specification 9 (Registry Operator Code of Conduct) | Conduct/governance obligations. |
 | Specification 11 (Public Interest Commitments) | Contractual public-interest commitments. |
@@ -187,10 +188,10 @@ The original prioritized backlog has been implemented in this pass:
    objects in [src/dns/melendezZone.ts](../src/dns/melendezZone.ts).
 
 Remaining (intentionally deferred) technical items: full RDAP TIG/Response-Profile field-level
-conformance, EPP `authInfo` authorization on transfer/info, a complete pending-status state
-machine, IDN variant management, a live signed authoritative DNS server with key rollover, and a
-public web-WHOIS/RDAP search UI. Persistence note: contact, host, and poll-message data use
-in-memory repositories (domains retain their sqlite/memory storage).
+conformance, a complete pending-status state machine beyond client/server prohibitions, IDN variant
+management, a live signed authoritative DNS server with key rollover, and a public web-WHOIS/RDAP
+search UI. Persistence note: poll-message data uses an in-memory repository (domains, contacts, and
+hosts support SQLite when `STORAGE_MODE=sqlite`).
 
 ## 8. Conclusion
 

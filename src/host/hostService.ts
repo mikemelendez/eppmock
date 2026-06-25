@@ -1,5 +1,12 @@
 import { canonicalHostName, RegistryPolicyError } from "../domain/registryPolicy.js";
+import {
+  assertCanDelete,
+  assertCanUpdate,
+  ObjectStatusProhibitsOperationError
+} from "../epp/objectStatusPolicy.js";
 import type { CreateHostInput, HostRecord, HostRepository, UpdateHostInput } from "./types.js";
+
+export { ObjectStatusProhibitsOperationError };
 
 export class HostValidationError extends Error {}
 
@@ -38,7 +45,15 @@ export class HostService {
   }
 
   async update(name: string, registrarId: string, input: UpdateHostInput): Promise<HostRecord> {
-    const host = await this.repository.update(this.canonical(name), registrarId, input);
+    const canonical = this.canonical(name);
+    const existing = await this.repository.findByName(canonical);
+
+    if (!existing || existing.registrarId !== registrarId) {
+      throw new HostNotFoundOrUnauthorizedError(canonical);
+    }
+
+    assertCanUpdate(existing.statuses, input);
+    const host = await this.repository.update(canonical, registrarId, input);
 
     if (!host) {
       throw new HostNotFoundOrUnauthorizedError(this.canonical(name));
@@ -48,7 +63,15 @@ export class HostService {
   }
 
   async delete(name: string, registrarId: string): Promise<void> {
-    const deleted = await this.repository.delete(this.canonical(name), registrarId);
+    const canonical = this.canonical(name);
+    const existing = await this.repository.findByName(canonical);
+
+    if (!existing || existing.registrarId !== registrarId) {
+      throw new HostNotFoundOrUnauthorizedError(canonical);
+    }
+
+    assertCanDelete(existing.statuses);
+    const deleted = await this.repository.delete(canonical, registrarId);
 
     if (!deleted) {
       throw new HostNotFoundOrUnauthorizedError(this.canonical(name));

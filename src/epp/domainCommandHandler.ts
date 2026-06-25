@@ -2,6 +2,7 @@ import {
   DomainAlreadyExistsError,
   DomainNotFoundOrUnauthorizedError,
   DomainService,
+  ObjectStatusProhibitsOperationError,
   RegistryPolicyError
 } from "../domain/domainService.js";
 import {
@@ -20,7 +21,7 @@ import {
 } from "./domainResponses.js";
 import { childNode, childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
 import type { PollMessageRepository } from "./pollMessageRepository.js";
-import { commandCompleted, resultResponse, syntaxError } from "./responses.js";
+import { commandCompleted, objectStatusProhibitsOperation, resultResponse, syntaxError } from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
 import { asArray } from "./xml.js";
 
@@ -102,6 +103,10 @@ export class DomainCommandHandler implements CommandHandler {
         return parameterValuePolicyError(context.transactionId);
       }
 
+      if (error instanceof ObjectStatusProhibitsOperationError) {
+        return objectStatusProhibitsOperation(context.transactionId);
+      }
+
       throw error;
     }
   }
@@ -154,6 +159,10 @@ export class DomainCommandHandler implements CommandHandler {
         return parameterValuePolicyError(context.transactionId);
       }
 
+      if (error instanceof ObjectStatusProhibitsOperationError) {
+        return objectStatusProhibitsOperation(context.transactionId);
+      }
+
       throw error;
     }
   }
@@ -177,15 +186,19 @@ export class DomainCommandHandler implements CommandHandler {
         const restored = await this.domains.restore(name, context.session.clid);
         return domainRestoreResponse(restored, context.transactionId);
       } catch (error) {
-        if (error instanceof DomainNotFoundOrUnauthorizedError) {
-          return objectNotAuthorized(context.transactionId);
-        }
+      if (error instanceof DomainNotFoundOrUnauthorizedError) {
+        return objectNotAuthorized(context.transactionId);
+      }
 
-        if (error instanceof RegistryPolicyError) {
-          return parameterValuePolicyError(context.transactionId);
-        }
+      if (error instanceof RegistryPolicyError) {
+        return parameterValuePolicyError(context.transactionId);
+      }
 
-        throw error;
+      if (error instanceof ObjectStatusProhibitsOperationError) {
+        return objectStatusProhibitsOperation(context.transactionId);
+      }
+
+      throw error;
       }
     }
 
@@ -213,6 +226,10 @@ export class DomainCommandHandler implements CommandHandler {
         return parameterValuePolicyError(context.transactionId);
       }
 
+      if (error instanceof ObjectStatusProhibitsOperationError) {
+        return objectStatusProhibitsOperation(context.transactionId);
+      }
+
       throw error;
     }
   }
@@ -232,6 +249,10 @@ export class DomainCommandHandler implements CommandHandler {
     } catch (error) {
       if (error instanceof RegistryPolicyError) {
         return parameterValuePolicyError(context.transactionId);
+      }
+
+      if (error instanceof ObjectStatusProhibitsOperationError) {
+        return objectStatusProhibitsOperation(context.transactionId);
       }
 
       throw error;
@@ -271,6 +292,10 @@ export class DomainCommandHandler implements CommandHandler {
         return parameterValuePolicyError(context.transactionId);
       }
 
+      if (error instanceof ObjectStatusProhibitsOperationError) {
+        return objectStatusProhibitsOperation(context.transactionId);
+      }
+
       throw error;
     }
   }
@@ -294,6 +319,10 @@ export class DomainCommandHandler implements CommandHandler {
 
       if (error instanceof RegistryPolicyError) {
         return parameterValuePolicyError(context.transactionId);
+      }
+
+      if (error instanceof ObjectStatusProhibitsOperationError) {
+        return objectStatusProhibitsOperation(context.transactionId);
       }
 
       throw error;
@@ -350,6 +379,10 @@ export class DomainCommandHandler implements CommandHandler {
 
       if (error instanceof RegistryPolicyError) {
         return parameterValuePolicyError(context.transactionId);
+      }
+
+      if (error instanceof ObjectStatusProhibitsOperationError) {
+        return objectStatusProhibitsOperation(context.transactionId);
       }
 
       throw error;
