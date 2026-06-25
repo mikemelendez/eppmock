@@ -1,6 +1,9 @@
 import type { CreateDomainInput, DomainRecord, DomainRepository, UpdateDomainInput } from "./types.js";
 import { canonicalHostName, RegistryPolicy, RegistryPolicyError } from "./registryPolicy.js";
 
+/** ICANN-style registration period cap enforced on create and renew. */
+export const MAX_REGISTRATION_YEARS = 10;
+
 export class DomainService {
   private readonly policy: RegistryPolicy;
 
@@ -18,13 +21,14 @@ export class DomainService {
 
   async create(input: CreateDomainInput): Promise<DomainRecord> {
     const name = this.policy.normalizeDomainName(input.name).canonicalName;
+    const periodYears = normalizePeriodYears(input.periodYears, name);
     const [availability] = await this.repository.checkAvailability([name]);
 
     if (!availability?.available) {
       throw new DomainAlreadyExistsError(name);
     }
 
-    return this.repository.create({ ...input, name, nameservers: normalizeHostNames(input.nameservers) });
+    return this.repository.create({ ...input, name, periodYears, nameservers: normalizeHostNames(input.nameservers) });
   }
 
   findByName(name: string): Promise<DomainRecord | null> {
@@ -101,7 +105,8 @@ export class DomainService {
 
   async renew(name: string, registrarId: string, periodYears?: number): Promise<DomainRecord> {
     const normalizedName = this.policy.normalizeDomainName(name).canonicalName;
-    const domain = await this.repository.renew(normalizedName, registrarId, periodYears);
+    const period = normalizePeriodYears(periodYears, normalizedName);
+    const domain = await this.repository.renew(normalizedName, registrarId, period);
 
     if (!domain) {
       throw new DomainNotFoundOrUnauthorizedError(normalizedName);
@@ -155,6 +160,16 @@ export class DomainNotFoundOrUnauthorizedError extends Error {
 export { RegistryPolicyError };
 
 const ADD_GRACE_PERIOD_DAYS = 5;
+
+function normalizePeriodYears(periodYears: number | undefined, name: string): number {
+  const period = periodYears ?? 1;
+
+  if (!Number.isInteger(period) || period < 1 || period > MAX_REGISTRATION_YEARS) {
+    throw new RegistryPolicyError(name, `registration period must be between 1 and ${MAX_REGISTRATION_YEARS} years`);
+  }
+
+  return period;
+}
 
 function withinAddGracePeriod(createdAt: string): boolean {
   const created = new Date(createdAt).getTime();
