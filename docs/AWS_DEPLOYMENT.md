@@ -5,7 +5,8 @@ This project deploys well on a small AWS EC2 instance because it exposes:
 - HTTP/HTTPS dashboard through Caddy.
 - Raw EPP TCP on port `7000` (database-backed) and `7001` (stateless data-based mock).
 - WHOIS TCP on port `43`.
-- RDAP over HTTPS through Caddy on the `rdap.eppmock.melendez.mx` subdomain (internal port `8090`).
+- RDAP over HTTPS through Caddy at `${CONTROL_BASE_URL}/rdap` on the main host, or on the
+  optional `rdap.eppmock.melendez.mx` subdomain (internal port `8090`).
 - SQLite persistence on an attached EBS volume through a Docker volume.
 
 ## AWS Resources
@@ -26,22 +27,31 @@ Security group inbound rules:
 - `7000/tcp` from the IP ranges that need EPP access
 - `7001/tcp` from the IP ranges that need the data-based mock EPP service
 
-RDAP does not need its own inbound port: it is served over `443/tcp` via Caddy on the
-`rdap.eppmock.melendez.mx` subdomain.
+RDAP does not need its own inbound port: it is served over `443/tcp` via Caddy on
+`${CONTROL_BASE_URL}/rdap` (recommended) or on the optional `rdap.eppmock.melendez.mx` subdomain.
+
+Open `7001/tcp` if GitHub Actions or other external clients need to reach the data-based mock EPP service.
 
 Avoid NAT Gateway, RDS, and Load Balancers for the lowest-cost deployment.
 
 ## DNS
 
-Create `A` records:
+Create an `A` record for the dashboard host:
 
 ```text
-eppmock.melendez.mx      -> EC2 public IPv4
+eppmock.melendez.mx -> EC2 public IPv4
+```
+
+RDAP is available at `https://eppmock.melendez.mx/rdap` once Caddy is running. Optionally,
+add a second record if you prefer a dedicated RDAP subdomain:
+
+```text
 rdap.eppmock.melendez.mx -> EC2 public IPv4
 ```
 
-Caddy will automatically request and renew TLS certificates for both
-`eppmock.melendez.mx` (dashboard) and `rdap.eppmock.melendez.mx` (RDAP).
+Caddy will automatically request and renew TLS certificates for
+`eppmock.melendez.mx` (dashboard + RDAP path) and, if configured,
+`rdap.eppmock.melendez.mx`.
 
 ## Install EC2 Dependencies
 

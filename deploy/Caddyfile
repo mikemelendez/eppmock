@@ -1,7 +1,14 @@
 eppmock.melendez.mx {
   encode zstd gzip
 
-  reverse_proxy app:8080
+  # RDAP on the main host so CI/production tests do not require a separate DNS record.
+  handle_path /rdap/* {
+    reverse_proxy app:8090
+  }
+
+  handle {
+    reverse_proxy app:8080
+  }
 }
 
 # RDAP (RFC 7480 requires HTTPS). Point an A/AAAA record for this subdomain at the host.
