@@ -1,47 +1,5 @@
 import { dataMockCatalog } from "../epp/dataMockCatalog.js";
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function mockResultClass(resultCode: string): string {
-  const code = resultCode.trim();
-  if (/^2/.test(code)) {
-    return "res-err";
-  }
-  if (/^1/.test(code) || code === "greeting") {
-    return "res-ok";
-  }
-  return "";
-}
-
-function dataMockDocRows(): string {
-  return dataMockCatalog
-    .map((command, ci) =>
-      command.variations
-        .map(
-          (variation, vi) => `
-            <tr>
-              ${
-                vi === 0
-                  ? `<td rowspan="${command.variations.length}"><code>${escapeHtml(command.command)}</code><div class="muted" style="margin-top:4px">id: ${escapeHtml(command.identifier)}</div></td>`
-                  : ""
-              }
-              <td>${escapeHtml(variation.variation)}</td>
-              <td><span class="tag-pill">${escapeHtml(variation.tag)}</span></td>
-              <td><code class="${mockResultClass(variation.resultCode)}">${escapeHtml(variation.resultCode)}</code></td>
-              <td><button type="button" class="mock-view" data-ci="${ci}" data-vi="${vi}">View XML</button></td>
-            </tr>`
-        )
-        .join("")
-    )
-    .join("");
-}
-
 function dataMockCatalogJson(): string {
   return JSON.stringify(dataMockCatalog).replace(/</g, "\\u003c");
 }
@@ -66,7 +24,87 @@ export function dashboardHtml(): string {
       --accent-2: #06b6d4;
       --ok: #34d399;
       --danger: #fb7185;
+      --glow-1: rgba(139, 92, 246, 0.24);
+      --glow-2: rgba(6, 182, 212, 0.18);
+      --card-grad-end: rgba(255, 255, 255, 0.04);
+      --card-shadow: rgba(0, 0, 0, 0.28);
+      --surface-input: rgba(4, 7, 14, 0.72);
+      --surface-frame: rgba(4, 7, 14, 0.54);
+      --surface-soft: rgba(4, 7, 14, 0.42);
+      --row-hover: rgba(255, 255, 255, 0.03);
+      --btn-bg: rgba(255, 255, 255, 0.1);
+      --btn-bg-hover: rgba(255, 255, 255, 0.15);
+      --btn-text: #ffffff;
+      --code-text: #dbeafe;
+      --badge-bg: rgba(255, 255, 255, 0.08);
+      --ok-border: rgba(52, 211, 153, 0.42);
+      --ok-bg: rgba(52, 211, 153, 0.12);
+      --ok-badge-bg: rgba(52, 211, 153, 0.24);
+      --ok-badge-text: #bbf7d0;
+      --warn-border: rgba(251, 191, 36, 0.46);
+      --warn-bg: rgba(251, 191, 36, 0.12);
+      --warn-badge-bg: rgba(251, 191, 36, 0.22);
+      --warn-badge-text: #fde68a;
+      --danger-border: rgba(251, 113, 133, 0.48);
+      --danger-bg: rgba(251, 113, 133, 0.13);
+      --danger-badge-bg: rgba(251, 113, 133, 0.24);
+      --danger-badge-text: #fecdd3;
+      --error-border: rgba(251, 113, 133, 0.36);
+      --error-bg: rgba(251, 113, 133, 0.1);
+      --error-text: #fecdd3;
+      --modal-overlay: rgba(3, 5, 10, 0.72);
+      --modal-card-bg: #0d1018;
+      --modal-shadow: rgba(0, 0, 0, 0.6);
+      --code-block-bg: #06080d;
+      --code-block-text: #cbd5e1;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #eef1f6;
+      --panel: rgba(15, 23, 42, 0.04);
+      --panel-strong: rgba(15, 23, 42, 0.08);
+      --text: #0f172a;
+      --muted: #5a6577;
+      --line: rgba(15, 23, 42, 0.14);
+      --accent: #7c3aed;
+      --accent-2: #0891b2;
+      --ok: #059669;
+      --danger: #e11d48;
+      --glow-1: rgba(139, 92, 246, 0.16);
+      --glow-2: rgba(6, 182, 212, 0.14);
+      --card-grad-end: rgba(255, 255, 255, 0.7);
+      --card-shadow: rgba(15, 23, 42, 0.12);
+      --surface-input: rgba(255, 255, 255, 0.85);
+      --surface-frame: rgba(255, 255, 255, 0.72);
+      --surface-soft: rgba(255, 255, 255, 0.55);
+      --row-hover: rgba(15, 23, 42, 0.04);
+      --btn-bg: rgba(15, 23, 42, 0.08);
+      --btn-bg-hover: rgba(15, 23, 42, 0.14);
+      --btn-text: #0f172a;
+      --code-text: #1e3a8a;
+      --badge-bg: rgba(15, 23, 42, 0.08);
+      --ok-border: rgba(5, 150, 105, 0.4);
+      --ok-bg: rgba(5, 150, 105, 0.12);
+      --ok-badge-bg: rgba(5, 150, 105, 0.18);
+      --ok-badge-text: #065f46;
+      --warn-border: rgba(217, 119, 6, 0.4);
+      --warn-bg: rgba(217, 119, 6, 0.12);
+      --warn-badge-bg: rgba(217, 119, 6, 0.18);
+      --warn-badge-text: #92400e;
+      --danger-border: rgba(225, 29, 72, 0.4);
+      --danger-bg: rgba(225, 29, 72, 0.1);
+      --danger-badge-bg: rgba(225, 29, 72, 0.16);
+      --danger-badge-text: #9f1239;
+      --error-border: rgba(225, 29, 72, 0.32);
+      --error-bg: rgba(225, 29, 72, 0.08);
+      --error-text: #9f1239;
+      --modal-overlay: rgba(15, 23, 42, 0.4);
+      --modal-card-bg: #ffffff;
+      --modal-shadow: rgba(15, 23, 42, 0.25);
+      --code-block-bg: #f1f5f9;
+      --code-block-text: #334155;
     }
 
     * { box-sizing: border-box; }
@@ -76,8 +114,8 @@ export function dashboardHtml(): string {
       min-height: 100vh;
       color: var(--text);
       background:
-        radial-gradient(circle at 15% 10%, rgba(139, 92, 246, 0.24), transparent 30rem),
-        radial-gradient(circle at 85% 0%, rgba(6, 182, 212, 0.18), transparent 26rem),
+        radial-gradient(circle at 15% 10%, var(--glow-1), transparent 30rem),
+        radial-gradient(circle at 85% 0%, var(--glow-2), transparent 26rem),
         var(--bg);
     }
 
@@ -110,6 +148,28 @@ export function dashboardHtml(): string {
 
     .muted { color: var(--muted); }
 
+    .theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+      transition: transform 140ms ease, background 140ms ease, border-color 140ms ease;
+    }
+
+    .theme-toggle:hover {
+      transform: translateY(-1px);
+      background: var(--panel-strong);
+      border-color: var(--accent);
+    }
+
     .grid {
       display: grid;
       grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
@@ -119,8 +179,8 @@ export function dashboardHtml(): string {
     .card {
       border: 1px solid var(--line);
       border-radius: 28px;
-      background: linear-gradient(180deg, var(--panel-strong), rgba(255, 255, 255, 0.04));
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+      background: linear-gradient(180deg, var(--panel-strong), var(--card-grad-end));
+      box-shadow: 0 24px 80px var(--card-shadow);
       backdrop-filter: blur(18px);
       overflow: hidden;
     }
@@ -146,7 +206,7 @@ export function dashboardHtml(): string {
     input, select, textarea {
       width: 100%;
       color: var(--text);
-      background: rgba(4, 7, 14, 0.72);
+      background: var(--surface-input);
       border: 1px solid var(--line);
       border-radius: 16px;
       outline: none;
@@ -177,16 +237,16 @@ export function dashboardHtml(): string {
       border: 0;
       border-radius: 999px;
       padding: 12px 18px;
-      color: white;
-      background: rgba(255, 255, 255, 0.1);
+      color: var(--btn-text);
+      background: var(--btn-bg);
       cursor: pointer;
       font-weight: 700;
       transition: transform 140ms ease, background 140ms ease;
     }
 
-    button:hover { transform: translateY(-1px); background: rgba(255, 255, 255, 0.15); }
-    button.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
-    button.danger { color: #ffdbe2; }
+    button:hover { transform: translateY(-1px); background: var(--btn-bg-hover); }
+    button.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #ffffff; }
+    button.danger { color: var(--danger); }
     button:disabled { cursor: wait; opacity: 0.6; transform: none; }
 
     label.check {
@@ -216,23 +276,23 @@ export function dashboardHtml(): string {
     .frame {
       border: 1px solid var(--line);
       border-radius: 18px;
-      background: rgba(4, 7, 14, 0.54);
+      background: var(--surface-frame);
       overflow: hidden;
     }
 
     .frame.success {
-      border-color: rgba(52, 211, 153, 0.42);
-      background: linear-gradient(180deg, rgba(52, 211, 153, 0.12), rgba(4, 7, 14, 0.54));
+      border-color: var(--ok-border);
+      background: linear-gradient(180deg, var(--ok-bg), var(--surface-frame));
     }
 
     .frame.warning {
-      border-color: rgba(251, 191, 36, 0.46);
-      background: linear-gradient(180deg, rgba(251, 191, 36, 0.12), rgba(4, 7, 14, 0.54));
+      border-color: var(--warn-border);
+      background: linear-gradient(180deg, var(--warn-bg), var(--surface-frame));
     }
 
     .frame.error-status {
-      border-color: rgba(251, 113, 133, 0.48);
-      background: linear-gradient(180deg, rgba(251, 113, 133, 0.13), rgba(4, 7, 14, 0.54));
+      border-color: var(--danger-border);
+      background: linear-gradient(180deg, var(--danger-bg), var(--surface-frame));
     }
 
     .frame-title {
@@ -258,20 +318,20 @@ export function dashboardHtml(): string {
       border-radius: 999px;
       padding: 4px 8px;
       color: var(--text);
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--badge-bg);
       font-size: 11px;
       letter-spacing: 0.04em;
     }
 
-    .status-badge.success { background: rgba(52, 211, 153, 0.24); color: #bbf7d0; }
-    .status-badge.warning { background: rgba(251, 191, 36, 0.22); color: #fde68a; }
-    .status-badge.error-status { background: rgba(251, 113, 133, 0.24); color: #fecdd3; }
+    .status-badge.success { background: var(--ok-badge-bg); color: var(--ok-badge-text); }
+    .status-badge.warning { background: var(--warn-badge-bg); color: var(--warn-badge-text); }
+    .status-badge.error-status { background: var(--danger-badge-bg); color: var(--danger-badge-text); }
 
     pre {
       margin: 0;
       padding: 14px;
       overflow: auto;
-      color: #dbeafe;
+      color: var(--code-text);
       font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       white-space: pre-wrap;
       word-break: break-word;
@@ -291,7 +351,7 @@ export function dashboardHtml(): string {
       padding: 12px;
       border: 1px solid var(--line);
       border-radius: 16px;
-      background: rgba(4, 7, 14, 0.42);
+      background: var(--surface-soft);
       color: var(--muted);
       font-size: 13px;
     }
@@ -299,17 +359,17 @@ export function dashboardHtml(): string {
     .error {
       padding: 14px;
       border-radius: 18px;
-      border: 1px solid rgba(251, 113, 133, 0.36);
-      color: #fecdd3;
-      background: rgba(251, 113, 133, 0.1);
+      border: 1px solid var(--error-border);
+      color: var(--error-text);
+      background: var(--error-bg);
     }
 
     .zone-output {
       max-height: 260px;
       border: 1px solid var(--line);
       border-radius: 18px;
-      background: rgba(4, 7, 14, 0.54);
-      color: #dbeafe;
+      background: var(--surface-frame);
+      color: var(--code-text);
     }
 
     .dnssec-grid {
@@ -326,40 +386,127 @@ export function dashboardHtml(): string {
       font-size: 12px;
     }
 
-    .help-list {
+    .icon-stroke,
+    .help-icon svg,
+    .help-chevron,
+    .help-search svg,
+    .mock-search svg {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .help-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface-input);
+      margin-bottom: 16px;
+    }
+
+    .help-search svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
+
+    .help-search input {
+      width: 100%;
+      height: auto;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: none;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .help-scroll {
       display: grid;
-      gap: 10px;
-      max-height: 360px;
+      gap: 18px;
+      max-height: 440px;
       overflow: auto;
       padding-right: 4px;
     }
 
+    .help-group-label {
+      margin: 0 0 8px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .help-list {
+      display: grid;
+      gap: 10px;
+    }
+
     details.help-item {
       border: 1px solid var(--line);
-      border-radius: 16px;
-      background: rgba(4, 7, 14, 0.42);
+      border-radius: 14px;
+      background: var(--surface-soft);
       color: var(--muted);
+      overflow: hidden;
     }
 
     details.help-item summary {
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
       padding: 12px;
       color: var(--text);
       font-weight: 700;
+      font-size: 14px;
       list-style: none;
     }
 
     details.help-item summary::-webkit-details-marker { display: none; }
 
+    .help-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      flex: none;
+      border-radius: 9px;
+      background: var(--panel-strong);
+      color: var(--accent);
+    }
+
+    .help-icon svg { width: 16px; height: 16px; }
+    .help-title { flex: 1; min-width: 0; }
+
+    .help-chevron {
+      width: 16px;
+      height: 16px;
+      flex: none;
+      color: var(--muted);
+      transition: transform 160ms ease;
+    }
+
+    details.help-item[open] .help-chevron { transform: rotate(180deg); }
+
+    .help-content { padding: 0 12px 12px; }
+
     details.help-item p, details.help-item ul {
       margin: 0;
-      padding: 0 12px 12px;
       font-size: 13px;
       line-height: 1.5;
     }
 
-    details.help-item ul {
-      padding-left: 28px;
+    details.help-item ul { padding-left: 20px; }
+
+    .help-item[hidden], .help-group[hidden] { display: none; }
+
+    .help-empty {
+      margin: 4px 2px 0;
+      color: var(--muted);
+      font-size: 13px;
     }
 
     .credits {
@@ -374,14 +521,43 @@ export function dashboardHtml(): string {
       .toolbar, .dnssec-grid { grid-template-columns: 1fr; }
     }
   </style>
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("epp-theme");
+        var theme = stored || ((window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark");
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+  </script>
 </head>
 <body>
+  <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+      <symbol id="i-builder" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+      <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z"/></symbol>
+      <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><line x1="7" y1="7.5" x2="7.01" y2="7.5"/><line x1="7" y1="16.5" x2="7.01" y2="16.5"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9c-4.5-1-8-4-8-9V6Z"/></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><line x1="11" y1="12" x2="20" y2="3"/><line x1="17" y1="6" x2="20" y2="9"/><line x1="15" y1="8" x2="17" y2="10"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+      <symbol id="i-terminal" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></symbol>
+    </defs>
+  </svg>
   <main>
     <header>
       <div>
         <p class="muted">Extensible Provisioning Protocol</p>
         <h1>EPP Testing Tool</h1>
       </div>
+      <button type="button" id="themeToggle" class="theme-toggle" aria-label="Toggle color theme" title="Toggle light / dark mode">
+        <span id="themeToggleIcon" aria-hidden="true">&#9790;</span>
+        <span id="themeToggleLabel">Dark</span>
+      </button>
     </header>
 
     <section class="grid">
@@ -530,63 +706,84 @@ export function dashboardHtml(): string {
             </div>
           </div>
           <div class="card-body">
-            <div class="help-list">
-              <details class="help-item" open>
-                <summary>Request Builder</summary>
-                <p>Select a command template, edit the generated XML, then click Send EPP. The registry accepts only second-level .melendez domains such as example.melendez, including IDNs like café.melendez.</p>
-              </details>
-              <details class="help-item">
-                <summary>Authentication</summary>
-                <p>The user selector controls EPP login credentials for Auto login and the login template. Default users are melendez-admin, melendez-registrar, and melendez-tester.</p>
-              </details>
-              <details class="help-item">
-                <summary>Supported Domain Commands</summary>
-                <ul>
-                  <li>domain:check verifies availability.</li>
-                  <li>domain:create registers a domain with period, nameservers, contacts, authInfo, and optional secDNS DS data.</li>
-                  <li>domain:info returns status, registrar, contacts, nameservers, and dates.</li>
-                  <li>domain:update modifies nameservers, contacts, statuses, registrant, authInfo, and secDNS DS records.</li>
-                  <li>domain:delete removes the domain.</li>
-                  <li>domain:renew extends expiration.</li>
-                  <li>domain:transfer supports request, query, approve, reject, and cancel.</li>
-                  <li>Extensions: secDNS (DS data), launch (sunrise create), and rgp (redemption restore via domain:update).</li>
-                </ul>
-              </details>
-              <details class="help-item">
-                <summary>Contact and Host Commands</summary>
-                <ul>
-                  <li>contact:check/create/info/update/delete manage RFC 5733 contact objects (postalInfo, voice, fax, email, authInfo).</li>
-                  <li>host:check/create/info/update/delete manage RFC 5732 host objects with IPv4 and IPv6 glue addresses.</li>
-                </ul>
-              </details>
-              <details class="help-item">
-                <summary>Session Commands</summary>
-                <p>login authenticates the session, logout closes it, hello returns server capabilities, and poll returns queued server messages (a transfer request enqueues a poll message). The service returns no pending messages by default.</p>
-              </details>
-              <details class="help-item">
-                <summary>RDAP and Data-Based Mock Mode</summary>
-                <p>An RDAP service runs on port 8090 (/domain, /nameserver, /entity, /help). A second, stateless EPP service runs on port 7001 that answers from request data only - see the Data-Based Mock Mode table below for the tag conventions.</p>
-              </details>
-              <details class="help-item">
-                <summary>Registry State and CSV</summary>
-                <p>The Registry State card shows persisted domains and recent EPP commands. Download CSV exports the full domain table for verification, including statuses, nameservers, contacts, authInfo, DS records, dates, and transfer state.</p>
-              </details>
-              <details class="help-item">
-                <summary>WHOIS</summary>
-                <p>WHOIS is available on TCP port 43. Query with a plain domain line.</p>
-                <ul>
-                  <li>macOS/Linux: <code>printf "example.melendez\\r\\n" | nc eppmock.melendez.mx 43</code></li>
-                  <li>Windows PowerShell: <code>"example.melendez\`r\`n" | nc eppmock.melendez.mx 43</code></li>
-                </ul>
-              </details>
-              <details class="help-item">
-                <summary>DNS Zone Generator</summary>
-                <p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes NS delegations for every persisted .melendez domain, DS records from secDNS data, glue records for in-bailiwick nameservers, persisted KSK/ZSK DNSKEY material, RRSIG signatures, NSEC3 records, and configurable NSEC3PARAM values.</p>
-              </details>
-              <details class="help-item">
-                <summary>Protected Reset</summary>
-                <p>Reset clears the entire domain table and command log. It is protected by HTTP Basic Auth using RESET_HTTP_USER and RESET_HTTP_PASSWORD. Defaults are admin and reset-secret.</p>
-              </details>
+            <div class="help-search">
+              <svg aria-hidden="true"><use href="#i-search"/></svg>
+              <input id="helpSearch" type="text" placeholder="Search topics..." autocomplete="off" aria-label="Search help topics" />
+            </div>
+            <div class="help-scroll">
+              <div class="help-group" data-help-group>
+                <p class="help-group-label">Site features</p>
+                <div class="help-list">
+                  <details class="help-item" open>
+                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-builder"/></svg></span><span class="help-title">Request Builder</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+                    <div class="help-content"><p>Select a command template, edit the generated XML, then click Send EPP. The registry accepts only second-level .melendez domains such as example.melendez, including IDNs like café.melendez.</p></div>
+                  </details>
+                  <details class="help-item">
+                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-db"/></svg></span><span class="help-title">Registry State and CSV</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+                    <div class="help-content"><p>The Registry State card shows persisted domains and recent EPP commands. Download CSV exports the full domain table for verification, including statuses, nameservers, contacts, authInfo, DS records, dates, and transfer state.</p></div>
+                  </details>
+                  <details class="help-item">
+                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-globe"/></svg></span><span class="help-title">DNS Zone Generator</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+                    <div class="help-content"><p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes NS delegations for every persisted .melendez domain, DS records from secDNS data, glue records for in-bailiwick nameservers, persisted KSK/ZSK DNSKEY material, RRSIG signatures, NSEC3 records, and configurable NSEC3PARAM values.</p></div>
+                  </details>
+                  <details class="help-item">
+                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-search"/></svg></span><span class="help-title">WHOIS</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+                    <div class="help-content">
+                      <p>WHOIS is available on TCP port 43. Query with a plain domain line.</p>
+                      <ul>
+                        <li>macOS/Linux: <code>printf "example.melendez\\r\\n" | nc eppmock.melendez.mx 43</code></li>
+                        <li>Windows PowerShell: <code>"example.melendez\`r\`n" | nc eppmock.melendez.mx 43</code></li>
+                      </ul>
+                    </div>
+                  </details>
+                  <details class="help-item">
+                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-server"/></svg></span><span class="help-title">RDAP and Data-Based Mock Mode</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+                    <div class="help-content"><p>An RDAP service runs on port 8090 (/domain, /nameserver, /entity, /help). A second, stateless EPP service runs on port 7001 that answers from request data only - see the Data-Based Mock Mode gallery below for the tag conventions.</p></div>
+                  </details>
+                  <details class="help-item">
+                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-shield"/></svg></span><span class="help-title">Protected Reset</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+                    <div class="help-content"><p>Reset clears the entire domain table and command log. It is protected by HTTP Basic Auth using RESET_HTTP_USER and RESET_HTTP_PASSWORD. Defaults are admin and reset-secret.</p></div>
+                  </details>
+                </div>
+              </div>
+              <div class="help-group" data-help-group>
+                <p class="help-group-label">EPP commands</p>
+                <div class="help-list">
+                  <details class="help-item">
+                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-key"/></svg></span><span class="help-title">Authentication</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+                    <div class="help-content"><p>The user selector controls EPP login credentials for Auto login and the login template. Default users are melendez-admin, melendez-registrar, and melendez-tester.</p></div>
+                  </details>
+                  <details class="help-item">
+                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-globe"/></svg></span><span class="help-title">Supported Domain Commands</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+                    <div class="help-content">
+                      <ul>
+                        <li>domain:check verifies availability.</li>
+                        <li>domain:create registers a domain with period, nameservers, contacts, authInfo, and optional secDNS DS data.</li>
+                        <li>domain:info returns status, registrar, contacts, nameservers, and dates.</li>
+                        <li>domain:update modifies nameservers, contacts, statuses, registrant, authInfo, and secDNS DS records.</li>
+                        <li>domain:delete removes the domain.</li>
+                        <li>domain:renew extends expiration.</li>
+                        <li>domain:transfer supports request, query, approve, reject, and cancel.</li>
+                        <li>Extensions: secDNS (DS data), launch (sunrise create), and rgp (redemption restore via domain:update).</li>
+                      </ul>
+                    </div>
+                  </details>
+                  <details class="help-item">
+                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-users"/></svg></span><span class="help-title">Contact and Host Commands</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+                    <div class="help-content">
+                      <ul>
+                        <li>contact:check/create/info/update/delete manage RFC 5733 contact objects (postalInfo, voice, fax, email, authInfo).</li>
+                        <li>host:check/create/info/update/delete manage RFC 5732 host objects with IPv4 and IPv6 glue addresses.</li>
+                      </ul>
+                    </div>
+                  </details>
+                  <details class="help-item">
+                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-terminal"/></svg></span><span class="help-title">Session Commands</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+                    <div class="help-content"><p>login authenticates the session, logout closes it, hello returns server capabilities, and poll returns queued server messages (a transfer request enqueues a poll message). The service returns no pending messages by default.</p></div>
+                  </details>
+                </div>
+              </div>
+              <p class="help-empty" id="helpEmpty" hidden>No topics match your search.</p>
             </div>
           </div>
         </div>
@@ -600,20 +797,32 @@ export function dashboardHtml(): string {
           </div>
           <div class="card-body">
             <style>
-              .mock-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-              .mock-table th, .mock-table td { text-align: left; vertical-align: middle; padding: 9px 12px; border-bottom: 1px solid var(--line); }
-              .mock-table th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--bg); z-index: 1; }
-              .mock-table tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
-              .mock-table code { color: var(--accent-2); }
-              .tag-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; background: var(--panel-strong); border: 1px solid var(--line); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); }
-              .res-ok { color: var(--ok) !important; }
-              .res-err { color: var(--danger) !important; }
-              .mock-view { cursor: pointer; padding: 5px 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 12px; white-space: nowrap; transition: background .15s, border-color .15s, color .15s; }
-              .mock-view:hover { background: var(--panel-strong); border-color: var(--accent); color: var(--accent); }
+              .mock-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+              .mock-search { display: flex; align-items: center; gap: 8px; flex: 1 1 240px; min-width: 220px; padding: 0 12px; height: 42px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-input); }
+              .mock-search svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
+              .mock-search input { width: 100%; height: auto; padding: 0; border: 0; border-radius: 0; background: none; color: var(--text); font-size: 13px; }
+              .mock-filters { display: inline-flex; gap: 6px; }
+              .mock-filter { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+              .mock-filter:hover { border-color: var(--accent); color: var(--text); }
+              .mock-filter.active { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-color: transparent; color: #fff; }
+              .mock-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; }
+              .mock-cmd { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); transition: border-color .15s, transform .15s; }
+              .mock-cmd:hover { border-color: var(--accent); transform: translateY(-1px); }
+              .mock-cmd-name { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; color: var(--accent-2); }
+              .mock-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+              .mock-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; text-align: left; transition: transform .15s, border-color .15s; }
+              .mock-badge:hover { transform: translateY(-1px); border-color: var(--accent); }
+              .mock-badge .code { font-weight: 700; }
+              .mock-badge.ok { border-color: var(--ok-border); background: var(--ok-bg); }
+              .mock-badge.ok .code { color: var(--ok); }
+              .mock-badge.err { border-color: var(--danger-border); background: var(--danger-bg); }
+              .mock-badge.err .code { color: var(--danger); }
+              .mock-empty { color: var(--muted); font-size: 13px; margin: 6px 2px 0; }
+              .mock-hint { margin: 16px 2px 0; font-size: 12px; }
 
-              .mock-modal { position: fixed; inset: 0; background: rgba(3, 5, 10, 0.72); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 1000; }
+              .mock-modal { position: fixed; inset: 0; background: var(--modal-overlay); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 1000; }
               .mock-modal.open { display: flex; }
-              .mock-modal-card { width: min(980px, 100%); max-height: 88vh; display: flex; flex-direction: column; background: #0d1018; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); overflow: hidden; }
+              .mock-modal-card { width: min(980px, 100%); max-height: 88vh; display: flex; flex-direction: column; background: var(--modal-card-bg); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 30px 80px var(--modal-shadow); overflow: hidden; }
               .mock-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--line); }
               .mock-modal-head h3 { margin: 0; font-size: 16px; }
               .mock-close { background: none; border: none; color: var(--muted); font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
@@ -624,24 +833,24 @@ export function dashboardHtml(): string {
               .mock-modal-body { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 18px 22px 22px; overflow: auto; }
               .mock-modal-body section { display: flex; flex-direction: column; min-width: 0; }
               .mock-modal-body header { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
-              .mock-code { margin: 0; background: #06080d; border: 1px solid var(--line); border-radius: 10px; padding: 14px; overflow: auto; max-height: 56vh; }
-              .mock-code code { white-space: pre; font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: #cbd5e1; }
+              .mock-code { margin: 0; background: var(--code-block-bg); border: 1px solid var(--line); border-radius: 10px; padding: 14px; overflow: auto; max-height: 56vh; }
+              .mock-code code { white-space: pre; font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--code-block-text); }
               @media (max-width: 720px) { .mock-modal-body { grid-template-columns: 1fr; } }
             </style>
-            <div style="overflow: auto; max-height: 560px">
-              <table class="mock-table">
-                <thead>
-                  <tr>
-                    <th>Command</th>
-                    <th>Variation</th>
-                    <th>Tag (substring in identifier)</th>
-                    <th>Result</th>
-                    <th>Example</th>
-                  </tr>
-                </thead>
-                <tbody>${dataMockDocRows()}</tbody>
-              </table>
+            <div class="mock-toolbar">
+              <div class="mock-search">
+                <svg aria-hidden="true"><use href="#i-search"/></svg>
+                <input id="mockSearch" type="text" placeholder="Filter commands..." autocomplete="off" aria-label="Filter mock commands" />
+              </div>
+              <div class="mock-filters" role="group" aria-label="Filter by result">
+                <button type="button" class="mock-filter active" data-filter="all">All</button>
+                <button type="button" class="mock-filter" data-filter="ok">Success</button>
+                <button type="button" class="mock-filter" data-filter="err">Error</button>
+              </div>
             </div>
+            <div class="mock-gallery" id="mock-gallery"></div>
+            <p class="mock-empty" id="mock-empty" hidden>No commands match your filter.</p>
+            <p class="muted mock-hint">Tags are case-insensitive substrings in the highlighted identifier. Click a variation to view its example request and response.</p>
           </div>
         </div>
 
@@ -728,11 +937,85 @@ export function dashboardHtml(): string {
           document.body.style.overflow = "";
         }
 
-        document.querySelectorAll(".mock-view").forEach(function (btn) {
+        var gallery = document.getElementById("mock-gallery");
+        var galleryEmpty = document.getElementById("mock-empty");
+        var mockSearch = document.getElementById("mockSearch");
+        var filterButtons = Array.prototype.slice.call(document.querySelectorAll(".mock-filter"));
+        var galleryState = { q: "", filter: "all" };
+
+        function resultKind(code) {
+          var c = String(code).trim();
+          if (/^2/.test(c)) { return "err"; }
+          if (/^1/.test(c) || c === "greeting") { return "ok"; }
+          return "";
+        }
+
+        function variationVisible(cmd, variation) {
+          var kind = resultKind(variation.resultCode);
+          if (galleryState.filter !== "all" && kind !== galleryState.filter) { return false; }
+          if (!galleryState.q) { return true; }
+          var hay = (cmd.command + " " + variation.variation + " " + variation.tag + " " + variation.resultCode).toLowerCase();
+          return hay.indexOf(galleryState.q) !== -1;
+        }
+
+        function renderGallery() {
+          gallery.innerHTML = "";
+          var shown = 0;
+          catalog.forEach(function (cmd, ci) {
+            var matches = [];
+            cmd.variations.forEach(function (variation, vi) {
+              if (variationVisible(cmd, variation)) { matches.push({ variation: variation, vi: vi }); }
+            });
+            if (!matches.length) { return; }
+            shown += 1;
+            var card = document.createElement("div");
+            card.className = "mock-cmd";
+            var name = document.createElement("div");
+            name.className = "mock-cmd-name";
+            name.textContent = cmd.command;
+            card.appendChild(name);
+            var badges = document.createElement("div");
+            badges.className = "mock-badges";
+            matches.forEach(function (match) {
+              var kind = resultKind(match.variation.resultCode);
+              var badge = document.createElement("button");
+              badge.type = "button";
+              badge.className = "mock-badge" + (kind ? " " + kind : "");
+              badge.setAttribute("data-ci", String(ci));
+              badge.setAttribute("data-vi", String(match.vi));
+              badge.title = match.variation.variation + " — view example";
+              var code = document.createElement("span");
+              code.className = "code";
+              code.textContent = match.variation.resultCode;
+              badge.appendChild(code);
+              badge.appendChild(document.createTextNode(match.variation.variation));
+              badges.appendChild(badge);
+            });
+            card.appendChild(badges);
+            gallery.appendChild(card);
+          });
+          galleryEmpty.hidden = shown !== 0;
+        }
+
+        gallery.addEventListener("click", function (event) {
+          var badge = event.target.closest(".mock-badge");
+          if (!badge) { return; }
+          open(Number(badge.getAttribute("data-ci")), Number(badge.getAttribute("data-vi")));
+        });
+        mockSearch.addEventListener("input", function () {
+          galleryState.q = mockSearch.value.trim().toLowerCase();
+          renderGallery();
+        });
+        filterButtons.forEach(function (btn) {
           btn.addEventListener("click", function () {
-            open(Number(btn.getAttribute("data-ci")), Number(btn.getAttribute("data-vi")));
+            filterButtons.forEach(function (other) { other.classList.remove("active"); });
+            btn.classList.add("active");
+            galleryState.filter = btn.getAttribute("data-filter");
+            renderGallery();
           });
         });
+        renderGallery();
+
         modal.addEventListener("click", function (event) {
           if (event.target === modal || event.target.hasAttribute("data-close")) { close(); }
         });
@@ -1320,6 +1603,45 @@ export function dashboardHtml(): string {
       if (!response.ok) return;
       authUsers = await response.json();
       renderAuthUsers();
+    }
+
+    const themeToggle = $("themeToggle");
+
+    function syncThemeToggle() {
+      const isLight = document.documentElement.getAttribute("data-theme") === "light";
+      $("themeToggleIcon").innerHTML = isLight ? "&#9728;" : "&#9790;";
+      $("themeToggleLabel").textContent = isLight ? "Light" : "Dark";
+      themeToggle.setAttribute("aria-pressed", String(isLight));
+    }
+
+    function toggleTheme() {
+      const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("epp-theme", next); } catch (e) {}
+      syncThemeToggle();
+    }
+
+    themeToggle.addEventListener("click", toggleTheme);
+    syncThemeToggle();
+
+    const helpSearch = $("helpSearch");
+    if (helpSearch) {
+      const helpItems = Array.from(document.querySelectorAll(".help-item"));
+      const helpGroups = Array.from(document.querySelectorAll(".help-group"));
+      const helpEmpty = $("helpEmpty");
+      helpSearch.addEventListener("input", () => {
+        const q = helpSearch.value.trim().toLowerCase();
+        let any = false;
+        helpItems.forEach((item) => {
+          const match = !q || item.textContent.toLowerCase().includes(q);
+          item.hidden = !match;
+          if (match) { any = true; }
+        });
+        helpGroups.forEach((group) => {
+          group.hidden = group.querySelectorAll(".help-item:not([hidden])").length === 0;
+        });
+        helpEmpty.hidden = any;
+      });
     }
 
     template.addEventListener("change", applyTemplate);
