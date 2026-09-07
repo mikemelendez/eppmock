@@ -1,9 +1,3 @@
-import { dataMockCatalog } from "../epp/dataMockCatalog.js";
-
-function dataMockCatalogJson(): string {
-  return JSON.stringify(dataMockCatalog).replace(/</g, "\\u003c");
-}
-
 export function dashboardHtml(): string {
   return `<!doctype html>
 <html lang="en">
@@ -389,8 +383,7 @@ export function dashboardHtml(): string {
     .icon-stroke,
     .help-icon svg,
     .help-chevron,
-    .help-search svg,
-    .mock-search svg {
+    .help-search svg {
       fill: none;
       stroke: currentColor;
       stroke-width: 2;
@@ -737,8 +730,8 @@ export function dashboardHtml(): string {
                     </div>
                   </details>
                   <details class="help-item">
-                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-server"/></svg></span><span class="help-title">RDAP and Data-Based Mock Mode</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-                    <div class="help-content"><p>An RDAP service runs on port 8090 (/domain, /nameserver, /entity, /help). A second, stateless EPP service runs on port 7001 that answers from request data only - see the Data-Based Mock Mode gallery below for the tag conventions.</p></div>
+                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-server"/></svg></span><span class="help-title">RDAP</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+                    <div class="help-content"><p>An RDAP service runs on port 8090 (/domain, /nameserver, /entity, /help).</p></div>
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-shield"/></svg></span><span class="help-title">Protected Reset</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
@@ -788,242 +781,7 @@ export function dashboardHtml(): string {
           </div>
         </div>
 
-        <div class="card" style="grid-column: 1 / -1">
-          <div class="card-head">
-            <div>
-              <h2>Data-Based Mock Mode &mdash; port 7001</h2>
-              <p class="muted">A second, stateless EPP service listens on port 7001 and answers from request data only &mdash; no database, no session state. Connect there and use the tags below (case-insensitive substrings in the highlighted identifier) to drive a specific response. Port 7000 remains the database-backed service.</p>
-            </div>
-          </div>
-          <div class="card-body">
-            <style>
-              .mock-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-              .mock-search { display: flex; align-items: center; gap: 8px; flex: 1 1 240px; min-width: 220px; padding: 0 12px; height: 42px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-input); }
-              .mock-search svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
-              .mock-search input { width: 100%; height: auto; padding: 0; border: 0; border-radius: 0; background: none; color: var(--text); font-size: 13px; }
-              .mock-filters { display: inline-flex; gap: 6px; }
-              .mock-filter { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
-              .mock-filter:hover { border-color: var(--accent); color: var(--text); }
-              .mock-filter.active { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-color: transparent; color: #fff; }
-              .mock-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; }
-              .mock-cmd { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); transition: border-color .15s, transform .15s; }
-              .mock-cmd:hover { border-color: var(--accent); transform: translateY(-1px); }
-              .mock-cmd-name { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; color: var(--accent-2); }
-              .mock-badges { display: flex; flex-wrap: wrap; gap: 6px; }
-              .mock-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; text-align: left; transition: transform .15s, border-color .15s; }
-              .mock-badge:hover { transform: translateY(-1px); border-color: var(--accent); }
-              .mock-badge .code { font-weight: 700; }
-              .mock-badge.ok { border-color: var(--ok-border); background: var(--ok-bg); }
-              .mock-badge.ok .code { color: var(--ok); }
-              .mock-badge.err { border-color: var(--danger-border); background: var(--danger-bg); }
-              .mock-badge.err .code { color: var(--danger); }
-              .mock-empty { color: var(--muted); font-size: 13px; margin: 6px 2px 0; }
-              .mock-hint { margin: 16px 2px 0; font-size: 12px; }
-
-              .mock-modal { position: fixed; inset: 0; background: var(--modal-overlay); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 1000; }
-              .mock-modal.open { display: flex; }
-              .mock-modal-card { width: min(980px, 100%); max-height: 88vh; display: flex; flex-direction: column; background: var(--modal-card-bg); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 30px 80px var(--modal-shadow); overflow: hidden; }
-              .mock-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--line); }
-              .mock-modal-head h3 { margin: 0; font-size: 16px; }
-              .mock-close { background: none; border: none; color: var(--muted); font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; }
-              .mock-close:hover { color: var(--text); }
-              .mock-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 22px 0; }
-              .mock-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
-              .mock-chip em { color: var(--muted); font-style: normal; }
-              .mock-modal-body { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 18px 22px 22px; overflow: auto; }
-              .mock-modal-body section { display: flex; flex-direction: column; min-width: 0; }
-              .mock-modal-body header { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
-              .mock-code { margin: 0; background: var(--code-block-bg); border: 1px solid var(--line); border-radius: 10px; padding: 14px; overflow: auto; max-height: 56vh; }
-              .mock-code code { white-space: pre; font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--code-block-text); }
-              @media (max-width: 720px) { .mock-modal-body { grid-template-columns: 1fr; } }
-            </style>
-            <div class="mock-toolbar">
-              <div class="mock-search">
-                <svg aria-hidden="true"><use href="#i-search"/></svg>
-                <input id="mockSearch" type="text" placeholder="Filter commands..." autocomplete="off" aria-label="Filter mock commands" />
-              </div>
-              <div class="mock-filters" role="group" aria-label="Filter by result">
-                <button type="button" class="mock-filter active" data-filter="all">All</button>
-                <button type="button" class="mock-filter" data-filter="ok">Success</button>
-                <button type="button" class="mock-filter" data-filter="err">Error</button>
-              </div>
-            </div>
-            <div class="mock-gallery" id="mock-gallery"></div>
-            <p class="mock-empty" id="mock-empty" hidden>No commands match your filter.</p>
-            <p class="muted mock-hint">Tags are case-insensitive substrings in the highlighted identifier. Click a variation to view its example request and response.</p>
-          </div>
-        </div>
-
-      </div>
     </section>
-
-    <div class="mock-modal" id="mock-modal" role="dialog" aria-modal="true" aria-labelledby="mock-modal-title">
-      <div class="mock-modal-card">
-        <div class="mock-modal-head">
-          <h3 id="mock-modal-title"></h3>
-          <button type="button" class="mock-close" data-close aria-label="Close">&times;</button>
-        </div>
-        <div class="mock-chips" id="mock-modal-meta"></div>
-        <div class="mock-modal-body">
-          <section>
-            <header>Example request</header>
-            <pre class="mock-code"><code id="mock-modal-req"></code></pre>
-          </section>
-          <section>
-            <header>Example response</header>
-            <pre class="mock-code"><code id="mock-modal-res"></code></pre>
-          </section>
-        </div>
-      </div>
-    </div>
-
-    <script id="mock-catalog" type="application/json">${dataMockCatalogJson()}</script>
-    <script>
-      (function () {
-        var catalog = JSON.parse(document.getElementById("mock-catalog").textContent || "[]");
-        var modal = document.getElementById("mock-modal");
-        var titleEl = document.getElementById("mock-modal-title");
-        var metaEl = document.getElementById("mock-modal-meta");
-        var reqEl = document.getElementById("mock-modal-req");
-        var resEl = document.getElementById("mock-modal-res");
-
-        function isXml(value) {
-          return /^\\s*</.test(value) && /(<\\/|\\/>)/.test(value);
-        }
-
-        function formatXml(value) {
-          if (!isXml(value)) { return value; }
-          var withBreaks = value.replace(/>\\s*</g, ">\\n<");
-          var pad = 0;
-          var lines = withBreaks.split("\\n").map(function (raw) {
-            var node = raw.trim();
-            if (!node) { return ""; }
-            if (/^<\\//.test(node) && pad > 0) { pad -= 1; }
-            var line = new Array(pad + 1).join("  ") + node;
-            if (/^<[^!?][^>]*[^\\/]>$/.test(node) && !/^<\\//.test(node)) { pad += 1; }
-            return line;
-          });
-          return lines.filter(function (line) { return line.length > 0; }).join("\\n");
-        }
-
-        function chip(label, value) {
-          var span = document.createElement("span");
-          span.className = "mock-chip";
-          var em = document.createElement("em");
-          em.textContent = label;
-          span.appendChild(em);
-          span.appendChild(document.createTextNode(value));
-          return span;
-        }
-
-        function open(ci, vi) {
-          var cmd = catalog[ci];
-          if (!cmd) { return; }
-          var variation = cmd.variations[vi];
-          if (!variation) { return; }
-          titleEl.textContent = cmd.command + "  \\u00b7  " + variation.variation;
-          metaEl.innerHTML = "";
-          metaEl.appendChild(chip("identifier", cmd.identifier));
-          metaEl.appendChild(chip("tag", variation.tag));
-          metaEl.appendChild(chip("result", variation.resultCode));
-          reqEl.textContent = formatXml(variation.exampleRequest);
-          resEl.textContent = formatXml(variation.exampleResponse);
-          modal.classList.add("open");
-          document.body.style.overflow = "hidden";
-        }
-
-        function close() {
-          modal.classList.remove("open");
-          document.body.style.overflow = "";
-        }
-
-        var gallery = document.getElementById("mock-gallery");
-        var galleryEmpty = document.getElementById("mock-empty");
-        var mockSearch = document.getElementById("mockSearch");
-        var filterButtons = Array.prototype.slice.call(document.querySelectorAll(".mock-filter"));
-        var galleryState = { q: "", filter: "all" };
-
-        function resultKind(code) {
-          var c = String(code).trim();
-          if (/^2/.test(c)) { return "err"; }
-          if (/^1/.test(c) || c === "greeting") { return "ok"; }
-          return "";
-        }
-
-        function variationVisible(cmd, variation) {
-          var kind = resultKind(variation.resultCode);
-          if (galleryState.filter !== "all" && kind !== galleryState.filter) { return false; }
-          if (!galleryState.q) { return true; }
-          var hay = (cmd.command + " " + variation.variation + " " + variation.tag + " " + variation.resultCode).toLowerCase();
-          return hay.indexOf(galleryState.q) !== -1;
-        }
-
-        function renderGallery() {
-          gallery.innerHTML = "";
-          var shown = 0;
-          catalog.forEach(function (cmd, ci) {
-            var matches = [];
-            cmd.variations.forEach(function (variation, vi) {
-              if (variationVisible(cmd, variation)) { matches.push({ variation: variation, vi: vi }); }
-            });
-            if (!matches.length) { return; }
-            shown += 1;
-            var card = document.createElement("div");
-            card.className = "mock-cmd";
-            var name = document.createElement("div");
-            name.className = "mock-cmd-name";
-            name.textContent = cmd.command;
-            card.appendChild(name);
-            var badges = document.createElement("div");
-            badges.className = "mock-badges";
-            matches.forEach(function (match) {
-              var kind = resultKind(match.variation.resultCode);
-              var badge = document.createElement("button");
-              badge.type = "button";
-              badge.className = "mock-badge" + (kind ? " " + kind : "");
-              badge.setAttribute("data-ci", String(ci));
-              badge.setAttribute("data-vi", String(match.vi));
-              badge.title = match.variation.variation + " — view example";
-              var code = document.createElement("span");
-              code.className = "code";
-              code.textContent = match.variation.resultCode;
-              badge.appendChild(code);
-              badge.appendChild(document.createTextNode(match.variation.variation));
-              badges.appendChild(badge);
-            });
-            card.appendChild(badges);
-            gallery.appendChild(card);
-          });
-          galleryEmpty.hidden = shown !== 0;
-        }
-
-        gallery.addEventListener("click", function (event) {
-          var badge = event.target.closest(".mock-badge");
-          if (!badge) { return; }
-          open(Number(badge.getAttribute("data-ci")), Number(badge.getAttribute("data-vi")));
-        });
-        mockSearch.addEventListener("input", function () {
-          galleryState.q = mockSearch.value.trim().toLowerCase();
-          renderGallery();
-        });
-        filterButtons.forEach(function (btn) {
-          btn.addEventListener("click", function () {
-            filterButtons.forEach(function (other) { other.classList.remove("active"); });
-            btn.classList.add("active");
-            galleryState.filter = btn.getAttribute("data-filter");
-            renderGallery();
-          });
-        });
-        renderGallery();
-
-        modal.addEventListener("click", function (event) {
-          if (event.target === modal || event.target.hasAttribute("data-close")) { close(); }
-        });
-        document.addEventListener("keydown", function (event) {
-          if (event.key === "Escape") { close(); }
-        });
-      })();
-    </script>
     <p class="credits">This site was created for testing purposes -  Credits : Mike Melendez miguel@melendez.mx</p>
   </main>
 
