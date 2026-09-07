@@ -2,6 +2,8 @@ export interface EppSession {
   id: string;
   authenticated: boolean;
   clid?: string;
+  /** True when the session arrived on the public TLS listener (port 700). */
+  tls?: boolean;
   clientCertSha256?: string;
   connectedAt: Date;
   lastCommandAt: Date;
