@@ -63,6 +63,7 @@ jobs:
             RESET_HTTP_USER=${{ secrets.RESET_HTTP_USER }}
             RESET_HTTP_PASSWORD=${{ secrets.RESET_HTTP_PASSWORD }}
             EPP_USERS=${{ secrets.EPP_USERS }}
+            EPP_HOSTNAME=eppmock.melendez.mx
             EOF
 
             docker compose -f deploy/docker-compose.aws.yml up -d --build
@@ -76,6 +77,11 @@ jobs:
             fi
 
             if ! docker compose -f deploy/docker-compose.aws.yml exec -T app node -e "fetch('http://127.0.0.1:8080/health').then(async (response) => { if (!response.ok) { console.error(await response.text()); process.exit(1); } }).catch((error) => { console.error(error); process.exit(1); })"; then
+              docker compose -f deploy/docker-compose.aws.yml logs --tail=100 app
+              exit 1
+            fi
+
+            if ! docker compose -f deploy/docker-compose.aws.yml exec -T app node -e 'const tls=require("tls"); const s=tls.connect({host:"127.0.0.1",port:700,servername:"eppmock.melendez.mx",rejectUnauthorized:false},()=>{const c=s.getPeerCertificate(); const san=String(c.subjectaltname||""); const cn=c.subject&&c.subject.CN?c.subject.CN:""; if(!san.includes("eppmock.melendez.mx")&&cn!=="eppmock.melendez.mx"){console.error("EPP certificate SAN/CN mismatch",{san,cn}); process.exit(1);} console.log("EPP TLS OK",san||cn); s.end();}); s.on("error",e=>{console.error(e); process.exit(1);});'; then
               docker compose -f deploy/docker-compose.aws.yml logs --tail=100 app
               exit 1
             fi

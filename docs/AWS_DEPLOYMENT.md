@@ -3,11 +3,110 @@
 This project deploys well on a small AWS EC2 instance because it exposes:
 
 - HTTP/HTTPS dashboard through Caddy.
-- Raw EPP TCP on port `7000` (database-backed) and `7001` (stateless data-based mock).
+- **EPP TLS on TCP port `700`** (IANA EPP). The process terminates TLS itself with the Let's Encrypt certificate Caddy already issued for `eppmock.melendez.mx`.
+- A localhost-only plaintext EPP listener on `7000` for the dashboard (not published).
 - WHOIS TCP on port `43`.
 - RDAP over HTTPS through Caddy at `${CONTROL_BASE_URL}/rdap` on the main host, or on the
   optional `rdap.eppmock.melendez.mx` subdomain (internal port `8090`).
 - SQLite persistence on an attached EBS volume through a Docker volume.
+
+## RST cutover (do this on the existing instance)
+
+ICANN RST talks to `epp.hostName` on **TCP 700 with TLS**, not to Caddy on 443 and not to the old plaintext 7000.
+
+### 1. DNS
+
+Keep the existing A record (required):
+
+```text
+eppmock.melendez.mx -> EC2 public IPv4
+```
+
+Use that same name as RST `epp.hostName`. Optionally add AAAA if the instance has IPv6:
+
+```text
+eppmock.melendez.mx AAAA -> EC2 public IPv6
+```
+
+Do not put EPP behind CloudFront or an ALB. The probe must reach the instance.
+
+### 2. Security group
+
+Replace the old `7000/tcp` public rule with:
+
+- `700/tcp` from `epp.clientACL` (RST probe IPs). Until you have that list, you can temporarily allow your own IP to test, then lock it down.
+- Keep `80/tcp` and `443/tcp` from `0.0.0.0/0` (Caddy / Let's Encrypt HTTP-01).
+- `22/tcp` from your IP only.
+- `43/tcp` as needed for WHOIS.
+
+Close `7000/tcp` and `7001/tcp` on the public interface. Those ports are no longer published.
+
+AWS console: EC2 → Security Groups → inbound rules. Example CLI (substitute IDs):
+
+```bash
+aws ec2 authorize-security-group-ingress --group-id sg-... --protocol tcp --port 700 --cidr <rst-or-your-ip>/32
+aws ec2 revoke-security-group-ingress --group-id sg-... --protocol tcp --port 7000 --cidr 0.0.0.0/0
+```
+
+### 3. TLS certificate
+
+No extra Let's Encrypt setup. Caddy already has a public certificate for `eppmock.melendez.mx`. On container start the app copies that cert/key from the `caddy_data` volume and listens with TLS 1.2+ on port 700.
+
+After deploy, confirm:
+
+```bash
+echo | openssl s_client -connect eppmock.melendez.mx:700 -servername eppmock.melendez.mx 2>/dev/null | openssl x509 -noout -subject -dates -ext subjectAltName
+```
+
+The SAN must include `eppmock.melendez.mx`. TLS 1.1 must fail:
+
+```bash
+openssl s_client -connect eppmock.melendez.mx:700 -tls1_1
+```
+
+### 4. RST registrar certificates (epp-03)
+
+ICANN gives you `epp.client01Certificate` / `epp.client02Certificate` (or CSRs). Put each SHA-256 fingerprint on the matching `EPP_USERS` entry in the GitHub secret:
+
+```bash
+chmod +x deploy/fingerprint-cert.sh
+./deploy/fingerprint-cert.sh client01.pem
+```
+
+Example `EPP_USERS` secret:
+
+```json
+[
+  {"clid":"melendez-admin","password":"..."},
+  {"clid":"clid01","password":"...","clientCertSha256":"ab12..."},
+  {"clid":"clid02","password":"...","clientCertSha256":"cd34..."}
+]
+```
+
+`clid01` / `clid02` are the RST `epp.clid01` / `epp.clid02` values. Seed `epp.registeredNames` with a domain **not** sponsored by those two clients (create it as `melendez-admin` from the dashboard).
+
+Smoke-test login before ICANN issues certs by making a throwaway client cert:
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/clid01.key -out /tmp/clid01.pem -days 30 -subj "/CN=clid01"
+./deploy/fingerprint-cert.sh /tmp/clid01.pem
+```
+
+Put that fingerprint on `clid01` in `EPP_USERS`, redeploy, then:
+
+```bash
+openssl s_client -connect eppmock.melendez.mx:700 -servername eppmock.melendez.mx -cert /tmp/clid01.pem -key /tmp/clid01.key
+```
+
+### 5. Deploy
+
+Merge to `main` (or run the deploy workflow). The compose file now publishes `700` and waits for the Caddy certificate before starting Node.
+
+```bash
+docker compose -f deploy/docker-compose.aws.yml logs -f app
+```
+
+You should see `Exported Caddy certificate for eppmock.melendez.mx` and `listening on 0.0.0.0:700 (TLS)`.
 
 ## AWS Resources
 
@@ -24,13 +123,12 @@ Security group inbound rules:
 - `80/tcp` from `0.0.0.0/0`
 - `443/tcp` from `0.0.0.0/0`
 - `43/tcp` from `0.0.0.0/0` or from the IP ranges that need WHOIS access
-- `7000/tcp` from the IP ranges that need EPP access
-- `7001/tcp` from the IP ranges that need the data-based mock EPP service
+- `700/tcp` from `epp.clientACL` (RST probes) or your test IP — **not** from the whole internet once RST IPs are known
+
+Do not publish `7000` or `7001`. The dashboard talks to EPP on `127.0.0.1:7000` inside the container.
 
 RDAP does not need its own inbound port: it is served over `443/tcp` via Caddy on
 `${CONTROL_BASE_URL}/rdap` (recommended) or on the optional `rdap.eppmock.melendez.mx` subdomain.
-
-Open `7001/tcp` if GitHub Actions or other external clients need to reach the data-based mock EPP service.
 
 Avoid NAT Gateway, RDS, and Load Balancers for the lowest-cost deployment.
 
@@ -166,16 +264,10 @@ Dashboard:
 https://eppmock.melendez.mx
 ```
 
-EPP TCP (database-backed):
+EPP TCP (TLS, RST `epp.hostName`):
 
 ```text
-eppmock.melendez.mx:7000
-```
-
-EPP TCP (data-based mock):
-
-```text
-eppmock.melendez.mx:7001
+eppmock.melendez.mx:700
 ```
 
 WHOIS TCP:

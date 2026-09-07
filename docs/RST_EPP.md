@@ -46,25 +46,22 @@ Use these RST input parameters:
 `npm test` includes `src/epp/rstEppConformance.test.ts` (in-process cases) and
 `src/epp/tlsAuth.test.ts` (TLS 1.2 + client-certificate binding).
 
-## Operational requirements (not implemented in application code)
+## Operational requirements (deploy on the existing EC2)
 
-These will still fail RST until the **deployment** provides them:
+The compose file now terminates EPP TLS on **TCP 700** using Caddy's Let's Encrypt certificate for `eppmock.melendez.mx`. After merging and redeploying, finish these host steps (see `docs/AWS_DEPLOYMENT.md`):
 
-| Case | Requirement |
+| Case | What you do on AWS / DNS |
 | --- | --- |
-| epp-01 | Hostname `A` (and ideally `AAAA`) records; TCP/700 with **TLS 1.2+ only** (1.1 and below are disabled); RFC 9325 TLS 1.2 ciphers; certificate from a public CA whose SAN matches `epp.hostName`; firewall allow-list for `epp.clientACL` |
-| epp-03 | Map each RST registrar cert fingerprint into `EPP_USERS[].clientCertSha256` (or issue certs from the RST CSRs) |
-| epp-17 | Every `A`/`AAAA` address for the EPP hostname must serve the same repository |
+| epp-01 | Keep the `A` record for `eppmock.melendez.mx`; open **700/tcp** (close 7000); optionally add `AAAA`. Confirm the cert SAN matches with `openssl s_client -connect eppmock.melendez.mx:700`. Restrict 700 to `epp.clientACL` when ICANN gives you the list. |
+| epp-03 | Put RST client-cert SHA-256 fingerprints on `EPP_USERS` (`./deploy/fingerprint-cert.sh client.pem`) |
+| epp-17 | One instance serving all `A`/`AAAA` addresses (do not put 700 behind a second proxy) |
 
-Set on the host (see `deploy/.env.example`):
+RST input `epp.hostName` = `eppmock.melendez.mx`. Do **not** proxy EPP through Caddy.
+
+Set in GitHub `EPP_USERS` (passwords + fingerprints):
 
 ```
-EPP_TLS_CERT=/path/to/fullchain.pem
-EPP_TLS_KEY=/path/to/privkey.pem
-EPP_TLS_CA=/path/to/client-ca.pem   # optional; RST client certs are still accepted when unset
-EPP_TLS_REQUIRE_CLIENT_CERT=true
-EPP_REPOSITORY_ID=ICANNRST
-EPP_USERS=[{"clid":"clid01","password":"...","clientCertSha256":"..."},{"clid":"clid02","password":"...","clientCertSha256":"..."}]
+[{"clid":"clid01","password":"...","clientCertSha256":"..."},{"clid":"clid02","password":"...","clientCertSha256":"..."},{"clid":"melendez-admin","password":"..."}]
 ```
 
 `ICANNRST` is the IANA repository id reserved for RST / RSP evaluation. Do **not**

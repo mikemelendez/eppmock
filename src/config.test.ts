@@ -38,6 +38,18 @@ test("loads registry, WHOIS, and DNSSEC settings from the environment", () => {
   assert.equal(config.eppTlsRequireClientCert, false);
 });
 
+test("loads dashboard plaintext listener settings", () => {
+  const config = loadConfig({
+    EPP_PORT: "700",
+    EPP_DASHBOARD_HOST: "127.0.0.1",
+    EPP_DASHBOARD_PORT: "7000"
+  } as NodeJS.ProcessEnv);
+
+  assert.equal(config.eppPort, 700);
+  assert.equal(config.eppDashboardHost, "127.0.0.1");
+  assert.equal(config.eppDashboardPort, 7000);
+});
+
 test("TLS client-certificate requirement is a real boolean and not coerced from the string false", () => {
   const config = loadConfig({
     EPP_TLS_CERT: "/tmp/cert.pem",

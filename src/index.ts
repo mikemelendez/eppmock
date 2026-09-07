@@ -87,8 +87,19 @@ startEppServer(config, dataMockRouter, {
   host: config.eppMockHost,
   port: config.eppMockPort,
   label: "EPP data-mock",
+  tls: false,
   exitOnError: false
 });
+
+if (config.eppDashboardPort && config.eppDashboardPort !== config.eppPort) {
+  startEppServer(config, router, {
+    host: config.eppDashboardHost ?? "127.0.0.1",
+    port: config.eppDashboardPort,
+    label: "EPP dashboard (localhost)",
+    tls: false,
+    exitOnError: false
+  });
+}
 startWhoisServer(config, domainService);
 await startRdapServer(config, { domains: domainService, hosts: hostService, contacts: contactService });
 await startControlServer(config, domainService, commandLog);

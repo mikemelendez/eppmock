@@ -49,7 +49,8 @@ The registry accepts only second-level `.melendez` domains. Unicode IDNs are acc
 Available variables:
 
 - `EPP_HOST`, default `127.0.0.1`
-- `EPP_PORT`, default `7000` (database-backed EPP service)
+- `EPP_PORT`, default `7000` locally; AWS compose uses `700` (IANA EPP)
+- `EPP_DASHBOARD_HOST` / `EPP_DASHBOARD_PORT`, optional localhost plaintext listener so the dashboard can log in without a client certificate while port 700 requires TLS
 - `EPP_MOCK_HOST`, default `127.0.0.1`
 - `EPP_MOCK_PORT`, default `7001` (stateless data-based mock service)
 - `WHOIS_HOST`, default `127.0.0.1`
@@ -259,7 +260,7 @@ A gap analysis mapping this tool against the technically relevant parts of the I
 
 Deployment is configured for AWS EC2 using Docker Compose, Caddy, and GitHub Actions.
 
-See `docs/AWS_DEPLOYMENT.md` for the EC2 setup, GitHub secrets, security group ports, and DNS instructions for `eppmock.melendez.mx`.
+See `docs/AWS_DEPLOYMENT.md` for the EC2 setup, GitHub secrets, security group ports, and DNS instructions for `eppmock.melendez.mx`. Production EPP is TLS on `eppmock.melendez.mx:700`; the dashboard keeps a localhost plaintext listener on `7000`.
 
 ## Next Step Toward PostgreSQL
 

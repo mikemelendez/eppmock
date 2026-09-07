@@ -21,6 +21,8 @@ export interface EppServerOptions {
   port: number;
   label: string;
   exitOnError?: boolean;
+  /** When set, overrides `isTlsEnabled(config)` for this listener. */
+  tls?: boolean;
 }
 
 /**
@@ -41,7 +43,8 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
     host: options?.host ?? config.eppHost,
     port: options?.port ?? config.eppPort,
     label: options?.label ?? "EPP testing tool",
-    exitOnError: options?.exitOnError ?? true
+    exitOnError: options?.exitOnError ?? true,
+    tls: options?.tls ?? isTlsEnabled(config)
   };
 
   const onConnection = (socket: net.Socket): void => {
@@ -66,7 +69,7 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
     });
   };
 
-  const server = isTlsEnabled(config)
+  const server = resolved.tls
     ? tls.createServer(
         {
           cert: readFileSync(config.eppTlsCertPath as string),
@@ -96,7 +99,7 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
   });
 
   server.listen(resolved.port, resolved.host, () => {
-    const mode = isTlsEnabled(config) ? "TLS" : "TCP";
+    const mode = resolved.tls ? "TLS" : "TCP";
     console.log(`${resolved.label} listening on ${resolved.host}:${resolved.port} (${mode})`);
   });
 

@@ -22,7 +22,17 @@ export interface EppClientResult {
 }
 
 export async function sendEppRequest(
-  config: Pick<AppConfig, "eppHost" | "eppPort" | "authUsers" | "eppTlsCertPath" | "eppTlsKeyPath" | "eppTlsCaPath">,
+  config: Pick<
+    AppConfig,
+    | "eppHost"
+    | "eppPort"
+    | "eppDashboardHost"
+    | "eppDashboardPort"
+    | "authUsers"
+    | "eppTlsCertPath"
+    | "eppTlsKeyPath"
+    | "eppTlsCaPath"
+  >,
   request: EppClientRequest
 ): Promise<EppClientResult> {
   const timeoutMs = request.timeoutMs ?? 5_000;
@@ -81,15 +91,22 @@ export async function sendEppRequest(
 }
 
 function createEppSocket(
-  config: Pick<AppConfig, "eppHost" | "eppPort" | "eppTlsCertPath" | "eppTlsKeyPath" | "eppTlsCaPath">
+  config: Pick<
+    AppConfig,
+    "eppHost" | "eppPort" | "eppDashboardHost" | "eppDashboardPort" | "eppTlsCertPath" | "eppTlsKeyPath" | "eppTlsCaPath"
+  >
 ): net.Socket {
-  if (!config.eppTlsCertPath || !config.eppTlsKeyPath) {
-    return net.createConnection({ host: config.eppHost, port: config.eppPort });
+  const host = config.eppDashboardHost ?? config.eppHost;
+  const port = config.eppDashboardPort ?? config.eppPort;
+  const dashboardUsesPlaintext = Boolean(config.eppDashboardPort && config.eppDashboardPort !== config.eppPort);
+
+  if (dashboardUsesPlaintext || !config.eppTlsCertPath || !config.eppTlsKeyPath) {
+    return net.createConnection({ host, port });
   }
 
   return tls.connect({
-    host: config.eppHost,
-    port: config.eppPort,
+    host,
+    port,
     rejectUnauthorized: false,
     minVersion: "TLSv1.2",
     ca: config.eppTlsCaPath ? readFileSync(config.eppTlsCaPath) : undefined
