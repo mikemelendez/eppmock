@@ -24,8 +24,6 @@ services:
       EPP_PORT: "700"
       EPP_DASHBOARD_HOST: 127.0.0.1
       EPP_DASHBOARD_PORT: "7000"
-      EPP_MOCK_HOST: 127.0.0.1
-      EPP_MOCK_PORT: "7001"
       WHOIS_HOST: 0.0.0.0
       WHOIS_PORT: "43"
       CONTROL_HOST: 0.0.0.0

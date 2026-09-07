@@ -16,8 +16,6 @@ import { AuthCommandHandler } from "./epp/authCommandHandler.js";
 import { CommandLogRepository } from "./epp/commandLogRepository.js";
 import { CommandRouter } from "./epp/commandRouter.js";
 import { ContactCommandHandler } from "./epp/contactCommandHandler.js";
-import { DataMockHandler } from "./epp/dataMockHandler.js";
-import { DataMockRouter } from "./epp/dataMockRouter.js";
 import { DomainCommandHandler } from "./epp/domainCommandHandler.js";
 import { startEppServer } from "./epp/eppServer.js";
 import { HostCommandHandler } from "./epp/hostCommandHandler.js";
@@ -80,16 +78,7 @@ router.register("host:delete", hostHandler);
 router.register("poll", systemHandler);
 router.register("hello", systemHandler);
 
-const dataMockRouter = new DataMockRouter(new DataMockHandler(config.greetingServerId));
-
 startEppServer(config, router);
-startEppServer(config, dataMockRouter, {
-  host: config.eppMockHost,
-  port: config.eppMockPort,
-  label: "EPP data-mock",
-  tls: false,
-  exitOnError: false
-});
 
 if (config.eppDashboardPort && config.eppDashboardPort !== config.eppPort) {
   startEppServer(config, router, {

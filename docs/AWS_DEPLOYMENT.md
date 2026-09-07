@@ -39,7 +39,7 @@ Replace the old `7000/tcp` public rule with:
 - `22/tcp` from your IP only.
 - `43/tcp` as needed for WHOIS.
 
-Close `7000/tcp` and `7001/tcp` on the public interface. Those ports are no longer published.
+Close `7000/tcp` on the public interface. That port is no longer published.
 
 AWS console: EC2 → Security Groups → inbound rules. Example CLI (substitute IDs):
 
@@ -125,7 +125,7 @@ Security group inbound rules:
 - `43/tcp` from `0.0.0.0/0` or from the IP ranges that need WHOIS access
 - `700/tcp` from `epp.clientACL` (RST probes) or your test IP — **not** from the whole internet once RST IPs are known
 
-Do not publish `7000` or `7001`. The dashboard talks to EPP on `127.0.0.1:7000` inside the container.
+Do not publish `7000`. The dashboard talks to EPP on `127.0.0.1:7000` inside the container.
 
 RDAP does not need its own inbound port: it is served over `443/tcp` via Caddy on
 `${CONTROL_BASE_URL}/rdap` (recommended) or on the optional `rdap.eppmock.melendez.mx` subdomain.

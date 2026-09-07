@@ -9,8 +9,7 @@ import { greeting, resultResponse } from "./responses.js";
 import type { EppSession } from "./types.js";
 
 /**
- * Anything that can turn a raw EPP frame into a response frame. Both the database-backed
- * CommandRouter and the stateless DataMockRouter satisfy this contract.
+ * Anything that can turn a raw EPP frame into a response frame.
  */
 export interface EppRouter {
   route(rawXml: string, session: EppSession): Promise<string>;
