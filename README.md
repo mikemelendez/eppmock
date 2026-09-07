@@ -223,7 +223,7 @@ curl http://127.0.0.1:8090/nameserver/ns1.example.melendez
 
 ## Compliance
 
-A gap analysis mapping this tool against the technically relevant parts of the ICANN Base Registry Agreement (Specifications 6, 4, and 10) is in `docs/ICANN_COMPLIANCE.md`. Mapping against ICANN Registry System Testing (RST) v2026.06 EPP cases is in `docs/RST_EPP.md`. Authoritative DNS / DNSSEC (live nameservers) is a separate suite: `docs/RST_DNS.md`.
+A gap analysis mapping this tool against the technically relevant parts of the ICANN Base Registry Agreement (Specifications 6, 4, and 10) is in `docs/ICANN_COMPLIANCE.md`. Mapping against ICANN Registry System Testing (RST) v2026.06 EPP cases is in `docs/RST_EPP.md`. Authoritative DNS / DNSSEC nameservers are a separate RST suite **and a separate project**; this repo only exports the zone (`docs/RST_DNS.md`).
 
 ## AWS Deployment
 

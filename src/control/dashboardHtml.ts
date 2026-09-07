@@ -717,7 +717,7 @@ export function dashboardHtml(): string {
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-globe"/></svg></span><span class="help-title">DNS Zone Generator</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-                    <div class="help-content"><p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes NS delegations for every persisted .melendez domain, DS records from secDNS data, glue records for in-bailiwick nameservers, persisted KSK/ZSK DNSKEY material, RRSIG signatures, NSEC3 records, and configurable NSEC3PARAM values. Defaults are RST dnssec-93 values (NSEC3 iterations 0, empty salt). The file is not served on port 53; see docs/RST_DNS.md to load it on two public nameservers.</p></div>
+                    <div class="help-content"><p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes NS delegations for every persisted .melendez domain, DS records from secDNS data, glue records for in-bailiwick nameservers, persisted KSK/ZSK DNSKEY material, RRSIG signatures, NSEC3 records, and configurable NSEC3PARAM values. Defaults are RST dnssec-93 values (NSEC3 iterations 0, empty salt). This app does not serve port 53; load the file from a separate nameserver project (docs/RST_DNS.md).</p></div>
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-search"/></svg></span><span class="help-title">WHOIS</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
