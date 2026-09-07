@@ -1,3 +1,8 @@
+/**
+ * Copy `{EPP_HOSTNAME}.crt` / `.key` from Caddy's data volume to EPP_CERT_DIR.
+ * Caddy stores them under /data/caddy/certificates/<issuer>/<host>/; this container
+ * mounts that volume at CADDY_CERTS_ROOT (see docker-compose.aws.yml).
+ */
 import { copyFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 

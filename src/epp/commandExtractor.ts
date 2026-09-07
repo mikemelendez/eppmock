@@ -7,6 +7,7 @@ export interface ExtractedCommand {
   transactionId?: string;
 }
 
+/** Command name as `object:verb` (or `login` / `hello` / `poll`), plus clTRID if present. */
 export function extractCommand(document: XmlNode): ExtractedCommand {
   const epp = node(document.epp);
 

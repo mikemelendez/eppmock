@@ -1,3 +1,10 @@
+/**
+ * One registry process: public EPP (often TLS on :700), optional localhost EPP
+ * for the dashboard, WHOIS, RDAP, and the HTTP control UI.
+ *
+ * Domain / contact / host services share RegistryLinks so linked-delete and
+ * host-object policy can see all three stores without circular constructors.
+ */
 import { loadConfig } from "./config.js";
 import { ContactService } from "./contact/contactService.js";
 import { InMemoryContactRepository } from "./contact/inMemoryContactRepository.js";
@@ -80,6 +87,8 @@ router.register("hello", systemHandler);
 
 startEppServer(config, router);
 
+// Distinct plaintext port so the dashboard can login without a client certificate
+// while public EPP (EPP_PORT) still enforces TLS + cert binding.
 if (config.eppDashboardPort && config.eppDashboardPort !== config.eppPort) {
   startEppServer(config, router, {
     host: config.eppDashboardHost ?? "127.0.0.1",

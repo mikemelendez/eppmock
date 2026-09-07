@@ -96,6 +96,7 @@ function createEppSocket(
     "eppHost" | "eppPort" | "eppDashboardHost" | "eppDashboardPort" | "eppTlsCertPath" | "eppTlsKeyPath" | "eppTlsCaPath"
   >
 ): net.Socket {
+  // When AWS publishes TLS on 700, the dashboard still uses 127.0.0.1:7000 (plaintext).
   const host = config.eppDashboardHost ?? config.eppHost;
   const port = config.eppDashboardPort ?? config.eppPort;
   const dashboardUsesPlaintext = Boolean(config.eppDashboardPort && config.eppDashboardPort !== config.eppPort);

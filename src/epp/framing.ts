@@ -1,3 +1,4 @@
+/** RFC 5734: 4-byte big-endian length (including these 4 bytes) then UTF-8 XML. */
 export function encodeFrame(xml: string): Buffer {
   const payload = Buffer.from(xml, "utf8");
   const frame = Buffer.allocUnsafe(payload.length + 4);

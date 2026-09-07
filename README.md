@@ -1,20 +1,44 @@
 # EPP Testing Tool
 
-EPP service for integration testing with a web dashboard and optional persistent storage.
+Registry mock for the fictional TLD `.melendez`: EPP (RFC 5730–5734), WHOIS, RDAP, a signed zone file, and a web dashboard. Production at `eppmock.melendez.mx` is set up for ICANN RST `StandardEPP`.
 
-## Design
+## Architecture
 
-The project separates four responsibilities:
+`src/index.ts` starts one registry process with several listeners. Object rules live in `src/domain`, `src/contact`, and `src/host`. Storage is swapped behind repository interfaces (SQLite or in-memory).
 
-- `src/epp`: TCP transport, EPP framing, XML, sessions, and command routing.
-- `src/domain`: domain rules and the `DomainRepository` contract.
-- `src/domain/sqliteDomainRepository.ts`: persistent SQLite storage.
-- `src/domain/inMemoryDomainRepository.ts`: in-memory storage for quick tests.
-- `src/control`: HTTP API to manage fixtures, reset state, and inspect received commands.
-- `src/dns`: `.melendez` zone generation, DNSSEC key storage, and signing.
-- `src/whois`: TCP WHOIS service for registered `.melendez` domains.
+| Path | Role |
+| --- | --- |
+| `src/epp` | TCP/TLS transport, RFC 5734 framing, XML, sessions, command handlers |
+| `src/domain` / `src/contact` / `src/host` | Object policy and repositories |
+| `src/registry` | Cross-object links (linked delete, host objects, glue) |
+| `src/control` | Dashboard and HTTP control API |
+| `src/dns` | `.melendez` zone generation and DNSSEC signing |
+| `src/whois` | TCP WHOIS (port 43) |
+| `src/rdap` | RDAP JSON (internal 8090; public via Caddy `/rdap`) |
 
-The EPP protocol does not depend on the storage layer. To move from SQLite to PostgreSQL later, add an implementation such as `PostgresDomainRepository` that satisfies `DomainRepository` and wire it in `src/index.ts`.
+EPP handlers do not import SQLite. To move to PostgreSQL later, add repository implementations and wire them in `src/index.ts`.
+
+### Listeners
+
+Local `npm run dev` (no TLS):
+
+| Port | Service |
+| --- | --- |
+| `127.0.0.1:7000` | EPP (plaintext) |
+| `127.0.0.1:43` | WHOIS |
+| `127.0.0.1:8080` | Dashboard and control API |
+| `127.0.0.1:8090` | RDAP |
+
+AWS (`deploy/docker-compose.aws.yml`):
+
+| Port | Service |
+| --- | --- |
+| `700` public | EPP TLS 1.2–1.3 (IANA EPP). Node uses Caddy’s Let’s Encrypt cert for `eppmock.melendez.mx`. Login may require a client certificate (`EPP_TLS_REQUIRE_CLIENT_CERT`). |
+| `7000` localhost only | Same EPP registry, plaintext, for the dashboard. Password login only; not published. |
+| `43` public | WHOIS |
+| `80` / `443` | Caddy → dashboard `8080` and RDAP `8090` |
+
+The dashboard never connects to public port 700. `src/epp/eppClient.ts` uses `EPP_DASHBOARD_HOST` / `EPP_DASHBOARD_PORT` when that port differs from `EPP_PORT`.
 
 ## Supported Commands
 
@@ -48,9 +72,8 @@ The registry accepts only second-level `.melendez` domains. Unicode IDNs are acc
 
 Available variables:
 
-- `EPP_HOST`, default `127.0.0.1`
-- `EPP_PORT`, default `7000` locally; AWS compose uses `700` (IANA EPP)
-- `EPP_DASHBOARD_HOST` / `EPP_DASHBOARD_PORT`, optional localhost plaintext listener so the dashboard can log in without a client certificate while port 700 requires TLS
+- `EPP_HOST` / `EPP_PORT`, default `127.0.0.1:7000`. AWS compose binds `0.0.0.0:700` with TLS
+- `EPP_DASHBOARD_HOST` / `EPP_DASHBOARD_PORT`, optional second EPP listener (plaintext). Set in AWS to `127.0.0.1:7000` so the dashboard can log in without a client certificate
 - `WHOIS_HOST`, default `127.0.0.1`
 - `WHOIS_PORT`, default `43`
 - `CONTROL_HOST`, default `127.0.0.1`
@@ -62,7 +85,7 @@ Available variables:
 - `EPP_USERS`, optional JSON array of `{ "clid": "...", "password": "...", "clientCertSha256": "..." }`
 - `EPP_CLID` / `EPP_PASSWORD`, optional legacy override for the first default user
 - `EPP_TLS_CERT` / `EPP_TLS_KEY` / `EPP_TLS_CA`, optional PEM paths; when cert+key are set the EPP port uses TLS 1.2+ (RFC 5734)
-- `EPP_TLS_REQUIRE_CLIENT_CERT`, default `true` when TLS is enabled; login then requires a client certificate bound to the registrar
+- `EPP_TLS_REQUIRE_CLIENT_CERT`, default `true` when TLS is enabled. Enforced on **TLS sessions only** (RST epp-03). The dashboard plaintext listener still uses password login
 - `EPP_REPOSITORY_ID`, default `ICANNRST` (IANA id used in ROIDs)
 - `RESET_HTTP_USER`, default `admin`
 - `RESET_HTTP_PASSWORD`, default `reset-secret`
@@ -85,7 +108,7 @@ npm install
 npm run dev
 ```
 
-The EPP server listens on `127.0.0.1:7000`, WHOIS listens on `127.0.0.1:43`, and the control API listens on `127.0.0.1:8080`.
+EPP listens on `127.0.0.1:7000` (plaintext), WHOIS on `127.0.0.1:43`, the dashboard on `127.0.0.1:8080`, and RDAP on `127.0.0.1:8090`.
 
 By default, domains are persisted in `data/epp-testing-tool.sqlite`. The `data/` directory is created automatically and is not versioned in git.
 
@@ -95,7 +118,7 @@ Open the web dashboard at:
 http://127.0.0.1:8080
 ```
 
-From there, you can create EPP requests with templates, send them to the TCP server, and view the greeting, login response, and command response.
+Use **Auto login** so the dashboard sends `login` before your command. That path talks to the local EPP port, not to public TCP 700.
 
 ## Control API
 
@@ -162,7 +185,7 @@ The dashboard **Reset** button prompts for the same HTTP Basic Auth credentials.
 npm test
 ```
 
-The test suite covers production config validation, EPP `secDNS` DS create/update/info behavior, CSV export, HTTP zone downloads, and signed `.melendez` zone generation.
+The suite includes RST `StandardEPP` cases in `src/epp/rstEppConformance.test.ts` and TLS 1.2 / client-certificate login in `src/epp/tlsAuth.test.ts`, plus config, secDNS, RDAP, WHOIS, and signed-zone tests.
 
 ## Persistence
 
@@ -206,7 +229,7 @@ A gap analysis mapping this tool against the technically relevant parts of the I
 
 Deployment is configured for AWS EC2 using Docker Compose, Caddy, and GitHub Actions.
 
-See `docs/AWS_DEPLOYMENT.md` for the EC2 setup, GitHub secrets, security group ports, and DNS instructions for `eppmock.melendez.mx`. Production EPP is TLS on `eppmock.melendez.mx:700`; the dashboard keeps a localhost plaintext listener on `7000`.
+See `docs/AWS_DEPLOYMENT.md` for EC2, secrets, and security-group ports. Public EPP is `eppmock.melendez.mx:700` (TLS). RST parameters are in `docs/RST_EPP.md`.
 
 ## Next Step Toward PostgreSQL
 

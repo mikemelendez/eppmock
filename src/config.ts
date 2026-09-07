@@ -3,6 +3,7 @@ import { z } from "zod";
 const authUserSchema = z.object({
   clid: z.string().min(1),
   password: z.string().min(1),
+  /** SHA-256 of the registrar client cert (hex, no colons). Used on TLS login only. */
   clientCertSha256: z.string().min(8).optional()
 });
 
@@ -17,6 +18,7 @@ export const defaultAuthUsers: AuthUser[] = [
 const configSchema = z.object({
   eppHost: z.string().default("127.0.0.1"),
   eppPort: z.coerce.number().int().positive().default(7000),
+  /** Localhost EPP for the dashboard when public EPP is TLS on another port. */
   eppDashboardHost: z.string().optional(),
   eppDashboardPort: z.coerce.number().int().positive().optional(),
   whoisHost: z.string().default("127.0.0.1"),
