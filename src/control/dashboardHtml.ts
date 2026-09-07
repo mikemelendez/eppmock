@@ -709,7 +709,7 @@ export function dashboardHtml(): string {
                 <div class="help-list">
                   <details class="help-item" open>
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-builder"/></svg></span><span class="help-title">Request Builder</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-                    <div class="help-content"><p>Select a command template, edit the generated XML, then click Send EPP. The registry accepts only second-level .melendez domains such as example.melendez, including IDNs like café.melendez.</p></div>
+                    <div class="help-content"><p>Select a command template, edit the XML, then Send EPP. Check Auto login so the dashboard logs in first (otherwise you get 2201). Only second-level .melendez names are accepted, including IDNs such as café.melendez.</p></div>
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-db"/></svg></span><span class="help-title">Registry State and CSV</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
@@ -731,7 +731,7 @@ export function dashboardHtml(): string {
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-server"/></svg></span><span class="help-title">RDAP</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-                    <div class="help-content"><p>An RDAP service runs on port 8090 (/domain, /nameserver, /entity, /help).</p></div>
+                    <div class="help-content"><p>RDAP JSON on internal port 8090 (/domain, /nameserver, /entity, /help). In production Caddy serves it at https://eppmock.melendez.mx/rdap.</p></div>
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-shield"/></svg></span><span class="help-title">Protected Reset</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
@@ -744,7 +744,7 @@ export function dashboardHtml(): string {
                 <div class="help-list">
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-key"/></svg></span><span class="help-title">Authentication</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-                    <div class="help-content"><p>The user selector controls EPP login credentials for Auto login and the login template. Default users are melendez-admin, melendez-registrar, and melendez-tester.</p></div>
+                    <div class="help-content"><p>The user selector is the EPP registrar for Auto login and the login template. Defaults: melendez-admin, melendez-registrar, melendez-tester. The dashboard talks to localhost EPP without TLS, so Auto login does not need a client certificate. Public EPP on TCP 700 still requires a client cert when fingerprints are set on EPP_USERS.</p></div>
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-globe"/></svg></span><span class="help-title">Supported Domain Commands</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>

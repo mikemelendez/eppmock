@@ -114,6 +114,7 @@ export async function buildControlApp(
     service: "epp-testing-tool"
   }));
 
+  // Dashboard Auto login reads clid/password here. Bound on 8080 behind Caddy in AWS.
   app.get("/auth/users", async () => config.authUsers);
 
   app.get("/domains", async () => domains.list());

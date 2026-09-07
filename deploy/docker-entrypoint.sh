@@ -1,4 +1,6 @@
 #!/bin/sh
+# Copy Caddy's Let's Encrypt cert for EPP_HOSTNAME into EPP_CERT_DIR, then exec Node.
+# EPP on port 700 cannot sit behind Caddy HTTP; it needs the same public cert as HTTPS.
 set -eu
 
 if [ -n "${EPP_TLS_CERT:-}" ]; then

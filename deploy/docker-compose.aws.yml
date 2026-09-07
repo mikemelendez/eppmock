@@ -21,6 +21,7 @@ services:
       - .env
     environment:
       EPP_HOST: 0.0.0.0
+      # Public IANA EPP (TLS). Dashboard uses 7000 inside the container only.
       EPP_PORT: "700"
       EPP_DASHBOARD_HOST: 127.0.0.1
       EPP_DASHBOARD_PORT: "7000"
@@ -44,6 +45,7 @@ services:
     volumes:
       - epp_data:/app/data
       - caddy_data:/caddy-data:ro
+    # 700 = public EPP/TLS. Do not publish 7000 (dashboard-only plaintext).
     ports:
       - "43:43"
       - "700:700"

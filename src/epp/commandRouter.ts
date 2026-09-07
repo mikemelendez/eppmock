@@ -36,6 +36,7 @@ export class CommandRouter {
     if (!handler) {
       responseXml = unknownCommand(command.transactionId);
     } else if (!session.authenticated && command.name !== "login" && command.name !== "hello") {
+      // Unauthenticated sessions may only hello or login (2201 otherwise).
       responseXml = authorizationError(command.transactionId);
     } else {
       responseXml = await handler.handle(document, context);

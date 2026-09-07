@@ -76,10 +76,12 @@ EPP core (RFC 5730) - implemented:
   server-generated `svTRID`.
 - **Logout returns 1500.** RFC 5730 session-ending result code.
 - **TLS 1.2+ and client certificates (RFC 5734 / RST epp-01, epp-03).** When `EPP_TLS_CERT` and
-  `EPP_TLS_KEY` are set, the EPP port uses `tls.createServer` with `minVersion: TLSv1.2`,
+  `EPP_TLS_KEY` are set, the public EPP port uses `tls.createServer` with `minVersion: TLSv1.2`,
   `maxVersion: TLSv1.3`, and RFC 9325 TLS 1.2 ciphers. TLSv1.1 and below are refused.
-  Registrar accounts may include `clientCertSha256` so login fails for a missing, wrong, or
-  other-registrar certificate.
+  Registrar accounts may include `clientCertSha256` so **TLS** login fails for a missing, wrong, or
+  other-registrar certificate. A separate localhost plaintext listener (`EPP_DASHBOARD_PORT`) is
+  used only by the web dashboard so Auto login does not need a client cert. Case map:
+  [docs/RST_EPP.md](RST_EPP.md).
 - **IANA ROIDs.** Domain, contact, and host objects use `*-ICANNRST` (configurable via
   `EPP_REPOSITORY_ID`).
 - **Login validates `<options>`/`<svcs>`.** [src/epp/authCommandHandler.ts](../src/epp/authCommandHandler.ts)
@@ -199,7 +201,8 @@ Remaining (intentionally deferred) technical items: full RDAP TIG/Response-Profi
 conformance, a complete pending-status state machine beyond client/server prohibitions, IDN variant
 management, a live signed authoritative DNS server with key rollover, and a public web-WHOIS/RDAP
 search UI. Persistence note: poll-message data uses an in-memory repository (domains, contacts, and
-hosts support SQLite when `STORAGE_MODE=sqlite`).
+hosts support SQLite when `STORAGE_MODE=sqlite`). RST `StandardEPP` protocol coverage and remaining
+host steps (client-cert fingerprints, `epp.clientACL`) are tracked in [docs/RST_EPP.md](RST_EPP.md).
 
 ## 8. Conclusion
 

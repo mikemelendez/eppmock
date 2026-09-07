@@ -3,10 +3,10 @@
 Reference: [RST Test Specifications v2026.06](https://icann.github.io/rst-test-specs/v2026.06/rst-test-specs.html)
 (`StandardEPP`, cases `epp-01` … `epp-27`).
 
-This tool is a mock registry for `.melendez`. It can satisfy the **protocol**
-cases in the EPP suite when deployed with TLS and two registrar accounts. It
-cannot by itself satisfy the **operational** cases that need public DNS, a
-browser-trusted certificate, IPv6, and the RST probe ACL.
+This tool is a mock registry for `.melendez`. Protocol cases in `StandardEPP` are
+implemented in-process (`npm test`). Production EPP is already TLS on
+`eppmock.melendez.mx:700`. What ICANN still has to receive from you: registrar
+client-certificate fingerprints and (when they publish it) `epp.clientACL`.
 
 ## How the suite is configured for this server
 
@@ -14,14 +14,15 @@ Use these RST input parameters:
 
 | Parameter | Value |
 | --- | --- |
+| `epp.hostName` | `eppmock.melendez.mx` |
 | `epp.hostModel` | `objects` |
 | `general.registryDataModel` | `maximum` |
 | `dns.gluePolicy` | `narrow` (only the superordinate sponsor may create in-bailiwick hosts, and those hosts require glue) |
 | `epp.requiredContactTypes` | `[]` (registrant is required; admin/tech/billing are optional) |
 | `epp.secDNSInterfaces` | `dsData` |
 | `epp.supportedContactPostalInfoTypes` | `both` |
-| `epp.clid01` / `epp.clid02` | two distinct users from `EPP_USERS` |
-| `epp.registeredNames` | one existing domain **not** sponsored by those two clients |
+| `epp.clid01` / `epp.clid02` | `melendez-registrar` / `melendez-tester` (or any two distinct `EPP_USERS` clIDs) |
+| `epp.registeredNames` | one existing domain **not** sponsored by those two clients (create it as `melendez-admin`) |
 
 ## Protocol coverage (implemented here)
 
@@ -46,22 +47,21 @@ Use these RST input parameters:
 `npm test` includes `src/epp/rstEppConformance.test.ts` (in-process cases) and
 `src/epp/tlsAuth.test.ts` (TLS 1.2 + client-certificate binding).
 
-## Operational requirements (deploy on the existing EC2)
+## Operational requirements (AWS)
 
-The compose file now terminates EPP TLS on **TCP 700** using Caddy's Let's Encrypt certificate for `eppmock.melendez.mx`. After merging and redeploying, finish these host steps (see `docs/AWS_DEPLOYMENT.md`):
+EPP TLS on **TCP 700** uses Caddy’s Let’s Encrypt certificate for `eppmock.melendez.mx`.
+Do **not** proxy EPP through Caddy. Details: `docs/AWS_DEPLOYMENT.md`.
 
-| Case | What you do on AWS / DNS |
+| Case | Status / what remains |
 | --- | --- |
-| epp-01 | Keep the `A` record for `eppmock.melendez.mx`; open **700/tcp** (close 7000); optionally add `AAAA`. Confirm the cert SAN matches with `openssl s_client -connect eppmock.melendez.mx:700`. Restrict 700 to `epp.clientACL` when ICANN gives you the list. |
-| epp-03 | Put RST client-cert SHA-256 fingerprints on `EPP_USERS` (`./deploy/fingerprint-cert.sh client.pem`) |
-| epp-17 | One instance serving all `A`/`AAAA` addresses (do not put 700 behind a second proxy) |
+| epp-01 | Public `A` + TCP 700 + browser-trusted SAN are in place. Optionally add `AAAA`. When ICANN publishes `epp.clientACL`, restrict SG 700 to those IPs. |
+| epp-03 | Put RST client-cert SHA-256 fingerprints on `melendez-registrar` / `melendez-tester` in GitHub `EPP_USERS` (`./deploy/fingerprint-cert.sh client.pem`), then redeploy. Until then, greeting on 700 works; TLS login is rejected. Dashboard login does not need a client cert. |
+| epp-17 | One instance must serve every `A`/`AAAA` (no second proxy in front of 700). |
 
-RST input `epp.hostName` = `eppmock.melendez.mx`. Do **not** proxy EPP through Caddy.
-
-Set in GitHub `EPP_USERS` (passwords + fingerprints):
+Example `EPP_USERS` after ICANN issues certs (keep the passwords you already use):
 
 ```
-[{"clid":"clid01","password":"...","clientCertSha256":"..."},{"clid":"clid02","password":"...","clientCertSha256":"..."},{"clid":"melendez-admin","password":"..."}]
+[{"clid":"melendez-admin","password":"..."},{"clid":"melendez-registrar","password":"...","clientCertSha256":"..."},{"clid":"melendez-tester","password":"...","clientCertSha256":"..."}]
 ```
 
 `ICANNRST` is the IANA repository id reserved for RST / RSP evaluation. Do **not**

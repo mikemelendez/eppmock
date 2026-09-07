@@ -38,6 +38,7 @@ export const RFC_9325_TLS12_CIPHERS = [
 ].join(":");
 
 export function startEppServer(config: AppConfig, router: EppRouter, options?: Partial<EppServerOptions>): net.Server {
+  // options.tls=false is how the dashboard listener stays plaintext while EPP_PORT is TLS.
   const resolved: EppServerOptions = {
     host: options?.host ?? config.eppHost,
     port: options?.port ?? config.eppPort,

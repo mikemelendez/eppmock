@@ -28,6 +28,7 @@ COPY deploy/export-caddy-certs.mjs /app/export-caddy-certs.mjs
 RUN mkdir -p /app/data /app/certs \
   && chmod +x /app/docker-entrypoint.sh
 
+# 43 WHOIS, 700 public EPP/TLS, 8080 dashboard (Caddy proxies 80/443). RDAP stays on 8090 internal.
 EXPOSE 43 700 8080
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
