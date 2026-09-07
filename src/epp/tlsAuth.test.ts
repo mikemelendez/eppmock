@@ -83,6 +83,7 @@ test("epp-01/03 TLS 1.2 greeting and client-certificate login binding", async (t
       loginXml("melendez-registrar", "registrar-secret")
     );
     assert.match(loginOk.frames[1] ?? "", /<result code="1000">/);
+    assert.match(loginOk.cipherName, /GCM|CHACHA|AES/);
 
     const wrongCert = await tlsExchange(
       port,
@@ -90,6 +91,25 @@ test("epp-01/03 TLS 1.2 greeting and client-certificate login binding", async (t
       loginXml("melendez-registrar", "registrar-secret")
     );
     assert.match(wrongCert.frames[1] ?? "", /<result code="2200">/);
+
+    const missingCert = await tlsExchange(
+      port,
+      { ca: readFileSync(caCert) },
+      loginXml("melendez-registrar", "registrar-secret")
+    );
+    assert.match(missingCert.frames[1] ?? "", /<result code="2200">/);
+
+    await assert.rejects(
+      () =>
+        tlsExchange(port, {
+          ca: readFileSync(caCert),
+          key: readFileSync(client1Key),
+          cert: readFileSync(client1Cert),
+          minVersion: "TLSv1.1",
+          maxVersion: "TLSv1.1"
+        }),
+      /protocol|version|SSL|TLS/i
+    );
 
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
   } finally {
@@ -115,10 +135,11 @@ function tlsExchange(
   port: number,
   tlsOptions: tls.ConnectionOptions,
   commandXml?: string
-): Promise<{ frames: string[] }> {
+): Promise<{ frames: string[]; cipherName: string }> {
   return new Promise((resolve, reject) => {
     const decoder = new EppFrameDecoder();
     const frames: string[] = [];
+    let cipherName = "";
     const socket = tls.connect({
       host: "127.0.0.1",
       port,
@@ -133,7 +154,7 @@ function tlsExchange(
     }, 5000);
 
     socket.on("secureConnect", () => {
-      /* greeting is sent by the server after the handshake */
+      cipherName = socket.getCipher()?.name ?? "";
     });
 
     socket.on("data", (chunk) => {
@@ -144,7 +165,7 @@ function tlsExchange(
       if (frames.length >= (commandXml ? 2 : 1)) {
         clearTimeout(timeout);
         socket.end();
-        resolve({ frames });
+        resolve({ frames, cipherName });
       }
     });
 

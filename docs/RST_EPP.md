@@ -29,7 +29,7 @@ Use these RST input parameters:
 | --- | --- |
 | epp-02 | Greeting with `1.0`/`en`, domain/contact/host objects, `secDNS-1.1`, `rgp-1.0`, `launch-1.0` |
 | epp-03 | Login rejects unknown clID, bad password, missing/wrong/other-registrar client certs (when TLS + fingerprints are configured) |
-| epp-04–06 | check with `avail` 0/1; invalid names/IDs return `avail=0` or `2005` |
+| epp-04–06 | check with mixed names in one command: registered/reserved/invalid → `avail=0`, free → `avail=1` (never a single 2005 for the whole check) |
 | epp-07 / epp-09 | Contact create/update validate clID (3–16), ISO country, email, RFC 5733 voice/fax; info round-trips stored values and an IANA ROID (`*-ICANNRST`) |
 | epp-08 / epp-12 | Non-sponsoring clients get `2201` on contact/host info and update |
 | epp-10 / epp-24 | Delete returns `1000` and a later info is `2303` |
@@ -52,7 +52,7 @@ These will still fail RST until the **deployment** provides them:
 
 | Case | Requirement |
 | --- | --- |
-| epp-01 | Hostname `A` (and ideally `AAAA`) records; TCP/700 with **TLS 1.2+ only**; certificate from a public CA whose SAN matches `epp.hostName`; RFC 9325 ciphers; firewall allow-list for `epp.clientACL` |
+| epp-01 | Hostname `A` (and ideally `AAAA`) records; TCP/700 with **TLS 1.2+ only** (1.1 and below are disabled); RFC 9325 TLS 1.2 ciphers; certificate from a public CA whose SAN matches `epp.hostName`; firewall allow-list for `epp.clientACL` |
 | epp-03 | Map each RST registrar cert fingerprint into `EPP_USERS[].clientCertSha256` (or issue certs from the RST CSRs) |
 | epp-17 | Every `A`/`AAAA` address for the EPP hostname must serve the same repository |
 

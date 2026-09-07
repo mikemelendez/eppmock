@@ -23,6 +23,19 @@ export interface EppServerOptions {
   exitOnError?: boolean;
 }
 
+/**
+ * TLS 1.2 cipher suites recommended by RFC 9325 §4.2. TLS 1.3 suites are
+ * negotiated separately by Node and are already AEAD-only.
+ */
+export const RFC_9325_TLS12_CIPHERS = [
+  "ECDHE-ECDSA-AES128-GCM-SHA256",
+  "ECDHE-RSA-AES128-GCM-SHA256",
+  "ECDHE-ECDSA-AES256-GCM-SHA384",
+  "ECDHE-RSA-AES256-GCM-SHA384",
+  "ECDHE-ECDSA-CHACHA20-POLY1305",
+  "ECDHE-RSA-CHACHA20-POLY1305"
+].join(":");
+
 export function startEppServer(config: AppConfig, router: EppRouter, options?: Partial<EppServerOptions>): net.Server {
   const resolved: EppServerOptions = {
     host: options?.host ?? config.eppHost,
@@ -61,7 +74,10 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
           ca: config.eppTlsCaPath ? readFileSync(config.eppTlsCaPath) : undefined,
           requestCert: config.eppTlsRequireClientCert,
           rejectUnauthorized: false,
-          minVersion: "TLSv1.2"
+          minVersion: "TLSv1.2",
+          maxVersion: "TLSv1.3",
+          honorCipherOrder: true,
+          ciphers: RFC_9325_TLS12_CIPHERS
         },
         onConnection
       )

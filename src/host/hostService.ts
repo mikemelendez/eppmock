@@ -34,8 +34,26 @@ export class HostService {
     private readonly links?: RegistryLinks
   ) {}
 
-  checkAvailability(names: string[]): Promise<Array<{ name: string; available: boolean }>> {
-    return this.repository.checkAvailability(names.map((name) => this.canonical(name)));
+  /**
+   * RST epp-05: invalid host names return `avail=0` in the same check response
+   * as valid names, rather than a 2005 for the whole command.
+   */
+  async checkAvailability(names: string[]): Promise<Array<{ name: string; available: boolean }>> {
+    return Promise.all(
+      names.map(async (name) => {
+        try {
+          const canonical = this.canonical(name);
+          const [result] = await this.repository.checkAvailability([canonical]);
+          return { name: canonical, available: result?.available ?? true };
+        } catch (error) {
+          if (error instanceof HostValidationError) {
+            return { name, available: false };
+          }
+
+          throw error;
+        }
+      })
+    );
   }
 
   async create(input: CreateHostInput): Promise<HostRecord> {

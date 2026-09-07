@@ -76,7 +76,8 @@ EPP core (RFC 5730) - implemented:
   server-generated `svTRID`.
 - **Logout returns 1500.** RFC 5730 session-ending result code.
 - **TLS 1.2+ and client certificates (RFC 5734 / RST epp-01, epp-03).** When `EPP_TLS_CERT` and
-  `EPP_TLS_KEY` are set, the EPP port uses `tls.createServer` with `minVersion: TLSv1.2`.
+  `EPP_TLS_KEY` are set, the EPP port uses `tls.createServer` with `minVersion: TLSv1.2`,
+  `maxVersion: TLSv1.3`, and RFC 9325 TLS 1.2 ciphers. TLSv1.1 and below are refused.
   Registrar accounts may include `clientCertSha256` so login fails for a missing, wrong, or
   other-registrar certificate.
 - **IANA ROIDs.** Domain, contact, and host objects use `*-ICANNRST` (configurable via

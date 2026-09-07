@@ -31,9 +31,27 @@ export class DomainService {
     this.policy = new RegistryPolicy(registryTld);
   }
 
+  /**
+   * RST epp-04: a check command may mix valid, reserved, and syntactically invalid
+   * names. Each name gets its own `avail` flag — reserved/invalid names are
+   * unavailable (`0`) instead of failing the whole command with 2005.
+   */
   async checkAvailability(names: string[]): Promise<Array<{ name: string; available: boolean }>> {
-    const normalizedNames = names.map((name) => this.policy.normalizeDomainName(name).canonicalName);
-    return this.repository.checkAvailability(normalizedNames);
+    return Promise.all(
+      names.map(async (name) => {
+        try {
+          const canonicalName = this.policy.normalizeDomainName(name).canonicalName;
+          const [result] = await this.repository.checkAvailability([canonicalName]);
+          return { name: canonicalName, available: result?.available ?? true };
+        } catch (error) {
+          if (error instanceof RegistryPolicyError) {
+            return { name, available: false };
+          }
+
+          throw error;
+        }
+      })
+    );
   }
 
   async create(input: CreateDomainInput): Promise<DomainRecord> {
@@ -194,6 +212,14 @@ export class DomainService {
       }
 
       return domain;
+    }
+
+    if ((operation === "approve" || operation === "reject") && existing.registrarId !== registrarId) {
+      throw new DomainNotFoundOrUnauthorizedError(normalizedName);
+    }
+
+    if (operation === "cancel" && existing.transfer?.requestedBy !== registrarId) {
+      throw new DomainNotFoundOrUnauthorizedError(normalizedName);
     }
 
     const domain = await this.repository.setTransfer(normalizedName, operation, registrarId);
