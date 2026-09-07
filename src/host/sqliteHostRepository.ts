@@ -1,11 +1,13 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import Database from "better-sqlite3";
+import { allocateRoid } from "../epp/roid.js";
 import type { CreateHostInput, HostAddress, HostRecord, HostRepository, UpdateHostInput } from "./types.js";
 
 interface HostRow {
   name: string;
   registrar_id: string;
+  creator_id: string | null;
   roid: string;
   statuses_json: string;
   addresses_json: string;
@@ -34,7 +36,8 @@ export class SqliteHostRepository implements HostRepository {
     const record: HostRecord = {
       name,
       registrarId: input.registrarId,
-      roid: `${name.toUpperCase()}-EPP`,
+      creatorId: input.registrarId,
+      roid: allocateRoid("H"),
       statuses: ["ok"],
       addresses: dedupeAddresses(input.addresses ?? []),
       createdAt: new Date().toISOString()
@@ -56,18 +59,33 @@ export class SqliteHostRepository implements HostRepository {
       return null;
     }
 
+    const nextName = input.newName ? normalizeName(input.newName) : host.name;
     const updated: HostRecord = {
       ...host,
+      name: nextName,
       addresses: updateAddresses(host.addresses, input.addressesToAdd, input.addressesToRemove),
       statuses: normalizeStatuses(updateList(host.statuses, input.statusesToAdd, input.statusesToRemove)),
       updatedAt: new Date().toISOString()
     };
 
+    if (nextName !== host.name) {
+      this.db.prepare("UPDATE hosts SET name = ? WHERE name = ?").run(nextName, host.name);
+    }
+
     this.db
       .prepare(
-        `UPDATE hosts SET registrar_id = ?, roid = ?, statuses_json = ?, addresses_json = ?, created_at = ?, updated_at = ? WHERE name = ?`
+        `UPDATE hosts SET registrar_id = ?, creator_id = ?, roid = ?, statuses_json = ?, addresses_json = ?, created_at = ?, updated_at = ? WHERE name = ?`
       )
-      .run(...values(updated).slice(1), updated.name);
+      .run(
+        updated.registrarId,
+        updated.creatorId,
+        updated.roid,
+        JSON.stringify(updated.statuses),
+        JSON.stringify(updated.addresses),
+        updated.createdAt,
+        updated.updatedAt ?? null,
+        updated.name
+      );
 
     return updated;
   }
@@ -88,7 +106,7 @@ export class SqliteHostRepository implements HostRepository {
     const transaction = this.db.transaction((items: HostRecord[]) => {
       this.db.prepare("DELETE FROM hosts").run();
       for (const record of items) {
-        this.insert({ ...record, name: normalizeName(record.name) });
+        this.insert({ ...record, name: normalizeName(record.name), creatorId: record.creatorId ?? record.registrarId });
       }
     });
     transaction(records);
@@ -103,8 +121,8 @@ export class SqliteHostRepository implements HostRepository {
   private insert(record: HostRecord): void {
     this.db
       .prepare(
-        `INSERT INTO hosts (name, registrar_id, roid, statuses_json, addresses_json, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO hosts (name, registrar_id, creator_id, roid, statuses_json, addresses_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(...values(record));
   }
@@ -122,13 +140,22 @@ export class SqliteHostRepository implements HostRepository {
       );
       CREATE INDEX IF NOT EXISTS idx_hosts_registrar_id ON hosts (registrar_id);
     `);
+
+    const columns = new Set(
+      (this.db.prepare("PRAGMA table_info(hosts)").all() as Array<{ name: string }>).map((column) => column.name)
+    );
+
+    if (!columns.has("creator_id")) {
+      this.db.exec("ALTER TABLE hosts ADD COLUMN creator_id TEXT");
+    }
   }
 }
 
-function values(record: HostRecord): [string, string, string, string, string, string, string | null] {
+function values(record: HostRecord): [string, string, string, string, string, string, string, string | null] {
   return [
     record.name,
     record.registrarId,
+    record.creatorId ?? record.registrarId,
     record.roid,
     JSON.stringify(record.statuses),
     JSON.stringify(record.addresses),
@@ -141,6 +168,7 @@ function mapRow(row: HostRow): HostRecord {
   return {
     name: row.name,
     registrarId: row.registrar_id,
+    creatorId: row.creator_id ?? row.registrar_id,
     roid: row.roid,
     statuses: parseStatuses(row.statuses_json),
     addresses: parseAddresses(row.addresses_json),

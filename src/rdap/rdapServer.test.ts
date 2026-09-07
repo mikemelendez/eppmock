@@ -28,7 +28,9 @@ function testConfig(): AppConfig {
     resetHttpPassword: "test-reset-password",
     storageMode: "memory",
     sqlitePath: ":memory:",
-    dnssecKeyPath: ":memory:"
+    dnssecKeyPath: ":memory:",
+    repositoryId: "ICANNRST",
+    eppTlsRequireClientCert: false
   };
 }
 

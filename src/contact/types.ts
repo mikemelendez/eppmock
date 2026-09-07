@@ -12,11 +12,14 @@ export interface ContactPostalInfo {
 export interface ContactRecord {
   id: string;
   registrarId: string;
+  creatorId: string;
   roid: string;
   statuses: string[];
   postalInfo: ContactPostalInfo[];
   voice?: string;
+  voiceExt?: string;
   fax?: string;
+  faxExt?: string;
   email: string;
   authInfo?: string;
   disclose?: boolean;
@@ -29,7 +32,9 @@ export interface CreateContactInput {
   registrarId: string;
   postalInfo: ContactPostalInfo[];
   voice?: string;
+  voiceExt?: string;
   fax?: string;
+  faxExt?: string;
   email: string;
   authInfo?: string;
 }
@@ -39,7 +44,9 @@ export interface UpdateContactInput {
   statusesToRemove?: string[];
   postalInfo?: ContactPostalInfo[];
   voice?: string;
+  voiceExt?: string;
   fax?: string;
+  faxExt?: string;
   email?: string;
   authInfo?: string;
 }

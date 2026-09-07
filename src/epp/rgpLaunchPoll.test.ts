@@ -30,6 +30,8 @@ test("RGP: deleting an aged domain enters redemptionPeriod and can be restored",
     {
       name: "aged.melendez",
       registrarId: "melendez-registrar",
+      creatorId: "melendez-registrar",
+      roid: "DAGED1-ICANNRST",
       periodYears: 1,
       statuses: ["ok"],
       nameservers: [],
@@ -67,6 +69,8 @@ test("RGP: domain:info exposes rgp:infData after redemption", async () => {
     {
       name: "aged.melendez",
       registrarId: "melendez-registrar",
+      creatorId: "melendez-registrar",
+      roid: "DAGED1-ICANNRST",
       periodYears: 1,
       statuses: ["ok"],
       nameservers: [],

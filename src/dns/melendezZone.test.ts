@@ -9,6 +9,8 @@ import { generateMelendezZone } from "./melendezZone.js";
 const domain: DomainRecord = {
   name: "signed.melendez",
   registrarId: "melendez-admin",
+  creatorId: "melendez-admin",
+  roid: "DTEST2-ICANNRST",
   periodYears: 1,
   statuses: ["ok"],
   nameservers: ["ns1.signed.melendez"],

@@ -2,7 +2,8 @@ import { z } from "zod";
 
 const authUserSchema = z.object({
   clid: z.string().min(1),
-  password: z.string().min(1)
+  password: z.string().min(1),
+  clientCertSha256: z.string().min(8).optional()
 });
 
 export type AuthUser = z.infer<typeof authUserSchema>;
@@ -31,7 +32,12 @@ const configSchema = z.object({
   resetHttpPassword: z.string().default("reset-secret"),
   storageMode: z.enum(["memory", "sqlite"]).default("sqlite"),
   sqlitePath: z.string().default("data/epp-testing-tool.sqlite"),
-  dnssecKeyPath: z.string().default("data/dnssec-keys.json")
+  dnssecKeyPath: z.string().default("data/dnssec-keys.json"),
+  repositoryId: z.string().regex(/^\w{1,8}$/).default("ICANNRST"),
+  eppTlsCertPath: z.string().optional(),
+  eppTlsKeyPath: z.string().optional(),
+  eppTlsCaPath: z.string().optional(),
+  eppTlsRequireClientCert: z.boolean().default(false)
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -55,11 +61,37 @@ export function loadConfig(env = process.env): AppConfig {
     resetHttpPassword: env.RESET_HTTP_PASSWORD,
     storageMode: env.STORAGE_MODE,
     sqlitePath: env.SQLITE_PATH,
-    dnssecKeyPath: env.DNSSEC_KEY_PATH
+    dnssecKeyPath: env.DNSSEC_KEY_PATH,
+    repositoryId: env.EPP_REPOSITORY_ID,
+    eppTlsCertPath: env.EPP_TLS_CERT,
+    eppTlsKeyPath: env.EPP_TLS_KEY,
+    eppTlsCaPath: env.EPP_TLS_CA,
+    eppTlsRequireClientCert: parseBool(
+      env.EPP_TLS_REQUIRE_CLIENT_CERT,
+      Boolean(env.EPP_TLS_CERT && env.EPP_TLS_KEY)
+    )
   });
 
   validateProductionConfig(config, env);
   return config;
+}
+
+function parseBool(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined || value === "") {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === "1" || normalized === "true" || normalized === "yes") {
+    return true;
+  }
+
+  if (normalized === "0" || normalized === "false" || normalized === "no") {
+    return false;
+  }
+
+  return fallback;
 }
 
 function loadAuthUsers(env: NodeJS.ProcessEnv): AuthUser[] {
@@ -78,6 +110,10 @@ function loadAuthUsers(env: NodeJS.ProcessEnv): AuthUser[] {
   }
 
   return defaultAuthUsers;
+}
+
+export function isTlsEnabled(config: AppConfig): boolean {
+  return Boolean(config.eppTlsCertPath && config.eppTlsKeyPath);
 }
 
 function validateProductionConfig(config: AppConfig, env: NodeJS.ProcessEnv): void {

@@ -38,7 +38,7 @@ export function formatWhoisResponse(query: string, domain: DomainRecord | null, 
   const lines = [
     `Domain Name: ${domain.name}`,
     `Unicode Name: ${unicodeDomainName(domain.name)}`,
-    `Registry Domain ID: ${domain.name}-EPP`,
+    `Registry Domain ID: ${domain.roid}`,
     `Registrar: ${domain.registrarId}`,
     `Creation Date: ${domain.createdAt}`,
     `Updated Date: ${domain.updatedAt ?? ""}`,

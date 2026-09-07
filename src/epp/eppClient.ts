@@ -1,4 +1,6 @@
 import net from "node:net";
+import tls from "node:tls";
+import { readFileSync } from "node:fs";
 import type { AppConfig } from "../config.js";
 import { EppFrameDecoder, encodeFrame } from "./framing.js";
 
@@ -20,7 +22,7 @@ export interface EppClientResult {
 }
 
 export async function sendEppRequest(
-  config: Pick<AppConfig, "eppHost" | "eppPort" | "authUsers">,
+  config: Pick<AppConfig, "eppHost" | "eppPort" | "authUsers" | "eppTlsCertPath" | "eppTlsKeyPath" | "eppTlsCaPath">,
   request: EppClientRequest
 ): Promise<EppClientResult> {
   const timeoutMs = request.timeoutMs ?? 5_000;
@@ -34,10 +36,7 @@ export async function sendEppRequest(
   const loginPassword = request.password ?? fallbackUser.password;
 
   return new Promise((resolve, reject) => {
-    const socket = net.createConnection({
-      host: config.eppHost,
-      port: config.eppPort
-    });
+    const socket = createEppSocket(config);
 
     const timeout = setTimeout(() => {
       socket.destroy();
@@ -78,6 +77,22 @@ export async function sendEppRequest(
       cleanup();
       reject(error);
     });
+  });
+}
+
+function createEppSocket(
+  config: Pick<AppConfig, "eppHost" | "eppPort" | "eppTlsCertPath" | "eppTlsKeyPath" | "eppTlsCaPath">
+): net.Socket {
+  if (!config.eppTlsCertPath || !config.eppTlsKeyPath) {
+    return net.createConnection({ host: config.eppHost, port: config.eppPort });
+  }
+
+  return tls.connect({
+    host: config.eppHost,
+    port: config.eppPort,
+    rejectUnauthorized: false,
+    minVersion: "TLSv1.2",
+    ca: config.eppTlsCaPath ? readFileSync(config.eppTlsCaPath) : undefined
   });
 }
 

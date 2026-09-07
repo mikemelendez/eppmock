@@ -2,8 +2,12 @@ import {
   DomainAlreadyExistsError,
   DomainNotFoundOrUnauthorizedError,
   DomainService,
+  DnssecPolicyError,
+  HostAttributeNotSupportedError,
+  ObjectDoesNotExistError,
   ObjectStatusProhibitsOperationError,
-  RegistryPolicyError
+  RegistryPolicyError,
+  RequiredParameterError
 } from "../domain/domainService.js";
 import {
   domainCheckResponse,
@@ -17,9 +21,11 @@ import {
   objectDoesNotExist,
   objectExists,
   objectNotAuthorized,
-  parameterValuePolicyError
+  parameterValuePolicyError,
+  requiredParameterMissing
 } from "./domainResponses.js";
 import { childNode, childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
+import { assertValidDsRecord } from "./dnssecPolicy.js";
 import type { PollMessageRepository } from "./pollMessageRepository.js";
 import { commandCompleted, objectStatusProhibitsOperation, resultResponse, syntaxError } from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
@@ -118,12 +124,30 @@ export class DomainCommandHandler implements CommandHandler {
   ): Promise<string> {
     const domainCreate = childNode(value, "create");
     const name = text(childValue(domainCreate, "name"));
-    const period = parsePeriod(childValue(domainCreate, "period"));
-    const nameservers = parseNameservers(childValue(domainCreate, "ns"));
+
+    let period: number | undefined;
+    let nameservers: string[];
+    let dsRecords: ReturnType<typeof parseDsRecords>;
+
+    try {
+      period = parsePeriod(childValue(domainCreate, "period"));
+      nameservers = parseNameservers(childValue(domainCreate, "ns"));
+      dsRecords = parseDsRecords(extension);
+    } catch (error) {
+      if (
+        error instanceof RegistryPolicyError ||
+        error instanceof DnssecPolicyError ||
+        error instanceof HostAttributeNotSupportedError
+      ) {
+        return parameterValuePolicyError(context.transactionId);
+      }
+
+      throw error;
+    }
+
     const registrantContact = text(childValue(domainCreate, "registrant"));
     const contacts = parseContacts(childValue(domainCreate, "contact"));
     const authInfo = parseAuthInfo(childValue(domainCreate, "authInfo"));
-    const dsRecords = parseDsRecords(extension);
 
     if (!name || !context.session.clid) {
       return syntaxError(context.transactionId);
@@ -156,6 +180,18 @@ export class DomainCommandHandler implements CommandHandler {
       }
 
       if (error instanceof RegistryPolicyError) {
+        return parameterValuePolicyError(context.transactionId);
+      }
+
+      if (error instanceof RequiredParameterError) {
+        return requiredParameterMissing(context.transactionId);
+      }
+
+      if (error instanceof ObjectDoesNotExistError) {
+        return objectDoesNotExist(context.transactionId);
+      }
+
+      if (error instanceof DnssecPolicyError || error instanceof HostAttributeNotSupportedError) {
         return parameterValuePolicyError(context.transactionId);
       }
 
@@ -194,6 +230,18 @@ export class DomainCommandHandler implements CommandHandler {
         return parameterValuePolicyError(context.transactionId);
       }
 
+      if (error instanceof RequiredParameterError) {
+        return requiredParameterMissing(context.transactionId);
+      }
+
+      if (error instanceof ObjectDoesNotExistError) {
+        return objectDoesNotExist(context.transactionId);
+      }
+
+      if (error instanceof DnssecPolicyError || error instanceof HostAttributeNotSupportedError) {
+        return parameterValuePolicyError(context.transactionId);
+      }
+
       if (error instanceof ObjectStatusProhibitsOperationError) {
         return objectStatusProhibitsOperation(context.transactionId);
       }
@@ -223,6 +271,14 @@ export class DomainCommandHandler implements CommandHandler {
       }
 
       if (error instanceof RegistryPolicyError) {
+        return parameterValuePolicyError(context.transactionId);
+      }
+
+      if (error instanceof ObjectDoesNotExistError) {
+        return objectDoesNotExist(context.transactionId);
+      }
+
+      if (error instanceof DnssecPolicyError || error instanceof HostAttributeNotSupportedError) {
         return parameterValuePolicyError(context.transactionId);
       }
 
@@ -303,14 +359,25 @@ export class DomainCommandHandler implements CommandHandler {
   private async renew(value: unknown, context: CommandContext): Promise<string> {
     const domainRenew = childNode(value, "renew");
     const name = text(childValue(domainRenew, "name"));
-    const period = parsePeriod(childValue(domainRenew, "period"));
+    const currentExpiry = text(childValue(domainRenew, "curExpDate"));
+    let period: number | undefined;
+
+    try {
+      period = parsePeriod(childValue(domainRenew, "period"));
+    } catch (error) {
+      if (error instanceof RegistryPolicyError) {
+        return parameterValuePolicyError(context.transactionId);
+      }
+
+      throw error;
+    }
 
     if (!name || !context.session.clid) {
       return syntaxError(context.transactionId);
     }
 
     try {
-      const domain = await this.domains.renew(name, context.session.clid, period);
+      const domain = await this.domains.renew(name, context.session.clid, period, currentExpiry);
       return domainRenewResponse(domain, context.transactionId);
     } catch (error) {
       if (error instanceof DomainNotFoundOrUnauthorizedError) {
@@ -353,9 +420,25 @@ export class DomainCommandHandler implements CommandHandler {
         if (!isSponsoringRegistrar && target.authInfo && providedAuthInfo !== target.authInfo) {
           return resultResponse(2202, "Invalid authorization information", context.transactionId);
         }
+
+        if (!isSponsoringRegistrar && !target.authInfo) {
+          return resultResponse(2202, "Invalid authorization information", context.transactionId);
+        }
       }
 
-      const domain = await this.domains.transfer(name, operation, context.session.clid);
+      let period: number | undefined;
+
+      try {
+        period = parsePeriod(childValue(domainTransfer, "period"));
+      } catch (error) {
+        if (error instanceof RegistryPolicyError) {
+          return parameterValuePolicyError(context.transactionId);
+        }
+
+        throw error;
+      }
+
+      const domain = await this.domains.transfer(name, operation, context.session.clid, period);
 
       if (operation === "request" && this.pollMessages) {
         this.pollMessages.enqueue({
@@ -391,20 +474,43 @@ export class DomainCommandHandler implements CommandHandler {
 }
 
 function parsePeriod(value: unknown): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
   const [periodNode] = asArray(value);
+
+  if (!periodNode) {
+    return undefined;
+  }
+
   const periodText = text(periodNode);
   const unit = node(periodNode)?.["@_unit"];
 
   if (!periodText || unit !== "y") {
-    return undefined;
+    throw new RegistryPolicyError("period", "registration period must use unit y and an integer 1-10");
   }
 
   const period = Number(periodText);
-  return Number.isInteger(period) && period > 0 ? period : undefined;
+
+  if (!Number.isInteger(period) || period < 1 || period > 10) {
+    throw new RegistryPolicyError("period", "registration period must be between 1 and 10 years");
+  }
+
+  return period;
 }
 
 function parseNameservers(value: unknown): string[] {
   const ns = node(value);
+
+  if (!ns) {
+    return [];
+  }
+
+  if (childValue(ns, "hostAttr") !== undefined) {
+    throw new HostAttributeNotSupportedError();
+  }
+
   return stringValues(childValue(ns, "hostObj"));
 }
 
@@ -439,35 +545,55 @@ function parseDsRecords(value: unknown, section: "add" | "rem" = "add"): Array<{
   digest: string;
 }> {
   const root = node(value);
-  const secDnsCreate = prefixedNode(root, "create");
-  const secDnsUpdate = prefixedNode(root, "update");
+  const secDnsCreate = namespacedNode(root, "urn:ietf:params:xml:ns:secDNS-1.1", "create");
+  const secDnsUpdate = namespacedNode(root, "urn:ietf:params:xml:ns:secDNS-1.1", "update");
   const dsContainer =
-    secDnsCreate ?? (section === "add" ? prefixedNode(secDnsUpdate, "add") : prefixedNode(secDnsUpdate, "rem")) ?? root;
+    secDnsCreate ??
+    (section === "add"
+      ? namespacedNode(secDnsUpdate, "urn:ietf:params:xml:ns:secDNS-1.1", "add")
+      : namespacedNode(secDnsUpdate, "urn:ietf:params:xml:ns:secDNS-1.1", "rem"));
 
-  return asArray(prefixedValue(dsContainer, "dsData")).flatMap((entry) => {
+  if (!dsContainer) {
+    return [];
+  }
+
+  const keyData = prefixedValue(dsContainer, "keyData");
+  const dsNodes = asArray(prefixedValue(dsContainer, "dsData"));
+
+  if (keyData !== undefined && dsNodes.length === 0) {
+    throw new DnssecPolicyError("keyData interface is not supported");
+  }
+
+  return dsNodes.map((entry) => {
     const dsData = node(entry);
-    const keyTag = Number(text(prefixedValue(dsData, "keyTag")));
-    const algorithm = Number(text(prefixedValue(dsData, "alg")));
-    const digestType = Number(text(prefixedValue(dsData, "digestType")));
+    const keyTagText = text(prefixedValue(dsData, "keyTag"));
+    const algorithmText = text(prefixedValue(dsData, "alg"));
+    const digestTypeText = text(prefixedValue(dsData, "digestType"));
     const digest = text(prefixedValue(dsData, "digest"));
+    const keyTag = Number(keyTagText);
+    const algorithm = Number(algorithmText);
+    const digestType = Number(digestTypeText);
 
     if (
+      !keyTagText ||
+      !algorithmText ||
+      !digestTypeText ||
+      !digest ||
       !Number.isInteger(keyTag) ||
       !Number.isInteger(algorithm) ||
-      !Number.isInteger(digestType) ||
-      !digest
+      !Number.isInteger(digestType)
     ) {
-      return [];
+      throw new DnssecPolicyError("DS record fields are missing or invalid");
     }
 
-    return [
-      {
-        keyTag,
-        algorithm,
-        digestType,
-        digest: digest.toUpperCase()
-      }
-    ];
+    const record = {
+      keyTag,
+      algorithm,
+      digestType,
+      digest: digest.toUpperCase()
+    };
+    assertValidDsRecord(record);
+    return record;
   });
 }
 

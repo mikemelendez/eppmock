@@ -22,11 +22,14 @@ import { DomainCommandHandler } from "./epp/domainCommandHandler.js";
 import { startEppServer } from "./epp/eppServer.js";
 import { HostCommandHandler } from "./epp/hostCommandHandler.js";
 import { PollMessageRepository } from "./epp/pollMessageRepository.js";
+import { setRepositoryId } from "./epp/roid.js";
 import { SystemCommandHandler } from "./epp/systemCommandHandler.js";
 import { startRdapServer } from "./rdap/rdapServer.js";
+import { RegistryLinks } from "./registry/registryLinks.js";
 import { startWhoisServer } from "./whois/whoisServer.js";
 
 const config = loadConfig();
+setRepositoryId(config.repositoryId);
 
 const useSqlite = config.storageMode === "sqlite";
 
@@ -40,9 +43,13 @@ const hostRepository: HostRepository = useSqlite
   ? new SqliteHostRepository(config.sqlitePath)
   : new InMemoryHostRepository();
 
-const domainService = new DomainService(domainRepository, config.registryTld);
-const contactService = new ContactService(contactRepository);
-const hostService = new HostService(hostRepository);
+const links = new RegistryLinks();
+const domainService = new DomainService(domainRepository, config.registryTld, links);
+const contactService = new ContactService(contactRepository, links);
+const hostService = new HostService(hostRepository, config.registryTld, links);
+links.domains = domainService;
+links.contacts = contactService;
+links.hosts = hostService;
 const commandLog = new CommandLogRepository();
 const pollMessages = new PollMessageRepository();
 

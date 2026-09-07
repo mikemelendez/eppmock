@@ -1,3 +1,4 @@
+import { allocateRoid } from "../epp/roid.js";
 import type { CreateHostInput, HostAddress, HostRecord, HostRepository, UpdateHostInput } from "./types.js";
 
 export class InMemoryHostRepository implements HostRepository {
@@ -20,7 +21,8 @@ export class InMemoryHostRepository implements HostRepository {
     const record: HostRecord = {
       name,
       registrarId: input.registrarId,
-      roid: `${name.toUpperCase()}-EPP`,
+      creatorId: input.registrarId,
+      roid: allocateRoid("H"),
       statuses: ["ok"],
       addresses: dedupeAddresses(input.addresses ?? []),
       createdAt: new Date().toISOString()
@@ -42,14 +44,21 @@ export class InMemoryHostRepository implements HostRepository {
       return null;
     }
 
+    const nextName = input.newName ? normalizeName(input.newName) : host.name;
+
     const updated: HostRecord = {
       ...host,
+      name: nextName,
       addresses: updateAddresses(host.addresses, input.addressesToAdd, input.addressesToRemove),
       statuses: normalizeStatuses(updateList(host.statuses, input.statusesToAdd, input.statusesToRemove)),
       updatedAt: new Date().toISOString()
     };
 
-    this.hosts.set(normalizedName, updated);
+    if (nextName !== normalizedName) {
+      this.hosts.delete(normalizedName);
+    }
+
+    this.hosts.set(nextName, updated);
     return updated;
   }
 
@@ -75,6 +84,7 @@ export class InMemoryHostRepository implements HostRepository {
       this.hosts.set(normalizeName(record.name), {
         ...record,
         name: normalizeName(record.name),
+        creatorId: record.creatorId ?? record.registrarId,
         addresses: dedupeAddresses(record.addresses ?? [])
       });
     }

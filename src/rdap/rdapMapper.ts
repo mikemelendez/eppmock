@@ -50,7 +50,7 @@ export function rdapDomain(
   return {
     rdapConformance: RDAP_CONFORMANCE,
     objectClassName: "domain",
-    handle: `${domain.name}-EPP`,
+    handle: domain.roid,
     ldhName: domain.name,
     unicodeName: options.unicodeName,
     status: mapStatuses(statuses),

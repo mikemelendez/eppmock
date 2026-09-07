@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { AppConfig } from "../config.js";
 import type { DomainRecord } from "../domain/types.js";
 import type { DomainService } from "../domain/domainService.js";
+import { allocateRoid } from "../epp/roid.js";
 import type { CommandLogRepository } from "../epp/commandLogRepository.js";
 import { sendEppRequest } from "../epp/eppClient.js";
 import { generateMelendezZone } from "../dns/melendezZone.js";
@@ -37,6 +38,9 @@ const domainFixtureSchema = z.object({
       })
     )
     .default([]),
+  creatorId: z.string().min(1).optional(),
+  roid: z.string().regex(/^(\w|_){1,80}-\w{1,8}$/).optional(),
+  rgpStatus: z.string().optional(),
   createdAt: z.string().datetime().default(() => new Date().toISOString()),
   updatedAt: z.string().datetime().optional(),
   expiresAt: z.string().datetime().default(() => {
@@ -142,7 +146,13 @@ export async function buildControlApp(
     }
 
     const body = resetBodySchema.parse(request.body ?? {});
-    await domains.reset(body.domains satisfies DomainRecord[]);
+    await domains.reset(
+      body.domains.map((domain) => ({
+        ...domain,
+        creatorId: domain.creatorId ?? domain.registrarId,
+        roid: domain.roid ?? allocateRoid("D")
+      }))
+    );
     commandLog.reset();
     return { ok: true };
   });
@@ -185,6 +195,8 @@ function domainsToCsv(domains: DomainRecord[]): string {
   const headers = [
     "name",
     "registrarId",
+    "creatorId",
+    "roid",
     "periodYears",
     "statuses",
     "nameservers",
@@ -200,6 +212,8 @@ function domainsToCsv(domains: DomainRecord[]): string {
   const rows = domains.map((domain) => [
     domain.name,
     domain.registrarId,
+    domain.creatorId,
+    domain.roid,
     String(domain.periodYears),
     JSON.stringify(domain.statuses),
     JSON.stringify(domain.nameservers),

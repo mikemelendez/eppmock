@@ -45,12 +45,13 @@ test(
       authInfo: "secret"
     });
 
-    assert.equal(created.id, "contact-1");
+    assert.equal(created.id, "Contact-1");
     assert.deepEqual(created.statuses, ["ok"]);
-    assert.equal(created.roid, "CONTACT-1-EPP");
+    assert.match(created.roid, /^C[0-9A-F]+-ICANNRST$/);
 
     const found = await repo.findById("CONTACT-1");
     assert.ok(found);
+    assert.equal(found?.id, "Contact-1");
     assert.equal(found?.email, "ada@example.com");
     assert.equal(found?.voice, "+52.8112345678");
     assert.equal(found?.authInfo, "secret");

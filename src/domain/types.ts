@@ -1,6 +1,8 @@
 export interface DomainRecord {
   name: string;
   registrarId: string;
+  creatorId: string;
+  roid: string;
   periodYears: number;
   statuses: string[];
   nameservers: string[];
@@ -50,6 +52,7 @@ export interface DomainTransfer {
   requestedBy: string;
   requestedAt: string;
   updatedAt: string;
+  periodYears?: number;
 }
 
 export type TransferStatus = DomainTransfer["status"];
@@ -71,8 +74,10 @@ export interface DomainRepository {
   setTransfer(
     name: string,
     operation: "request" | "approve" | "reject" | "cancel" | "query",
-    registrarId: string
+    registrarId: string,
+    periodYears?: number
   ): Promise<DomainRecord | null>;
+  replaceHostName(oldName: string, newName: string): Promise<void>;
   list(): Promise<DomainRecord[]>;
   reset(records?: DomainRecord[]): Promise<void>;
 }

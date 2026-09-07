@@ -74,6 +74,13 @@ EPP core (RFC 5730) - implemented:
 - **`clTRID` echoed in generic responses.** `resultResponse()` in
   [src/epp/responses.ts](../src/epp/responses.ts) now emits `clTRID` (when supplied) and a
   server-generated `svTRID`.
+- **Logout returns 1500.** RFC 5730 session-ending result code.
+- **TLS 1.2+ and client certificates (RFC 5734 / RST epp-01, epp-03).** When `EPP_TLS_CERT` and
+  `EPP_TLS_KEY` are set, the EPP port uses `tls.createServer` with `minVersion: TLSv1.2`.
+  Registrar accounts may include `clientCertSha256` so login fails for a missing, wrong, or
+  other-registrar certificate.
+- **IANA ROIDs.** Domain, contact, and host objects use `*-ICANNRST` (configurable via
+  `EPP_REPOSITORY_ID`).
 - **Login validates `<options>`/`<svcs>`.** [src/epp/authCommandHandler.ts](../src/epp/authCommandHandler.ts)
   returns 2100 for an unsupported `<version>`, 2102 for an unsupported `<lang>`, and 2307 for an
   unsupported object service URI.

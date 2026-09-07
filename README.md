@@ -60,8 +60,11 @@ Available variables:
 - `RDAP_PORT`, default `8090`
 - `GREETING_SERVER_ID`, default `epp-testing-tool`
 - `REGISTRY_TLD`, default `melendez`
-- `EPP_USERS`, optional JSON array of `{ "clid": "...", "password": "..." }`
+- `EPP_USERS`, optional JSON array of `{ "clid": "...", "password": "...", "clientCertSha256": "..." }`
 - `EPP_CLID` / `EPP_PASSWORD`, optional legacy override for the first default user
+- `EPP_TLS_CERT` / `EPP_TLS_KEY` / `EPP_TLS_CA`, optional PEM paths; when cert+key are set the EPP port uses TLS 1.2+ (RFC 5734)
+- `EPP_TLS_REQUIRE_CLIENT_CERT`, default `true` when TLS is enabled; login then requires a client certificate bound to the registrar
+- `EPP_REPOSITORY_ID`, default `ICANNRST` (IANA id used in ROIDs)
 - `RESET_HTTP_USER`, default `admin`
 - `RESET_HTTP_PASSWORD`, default `reset-secret`
 - `STORAGE_MODE`, default `sqlite`, values: `sqlite` or `memory`
@@ -250,7 +253,7 @@ Example: a `domain:create` for `valid.melendez` on port 7001 returns `1000`; the
 
 ## Compliance
 
-A gap analysis mapping this tool against the technically relevant parts of the ICANN Base Registry Agreement (Specifications 6, 4, and 10) is in `docs/ICANN_COMPLIANCE.md`. The technical remediation backlog has been implemented: RDAP, EPP contact (5733) and host (5732) objects, RGP (3915), launch phase (8334), EPP core polish (clTRID echo, login validation, poll `<msgQ>`), the WHOIS limited-data disclaimer, a Latin IDN table, and IPv4/IPv6 glue. The legal/operational provisions remain out of scope.
+A gap analysis mapping this tool against the technically relevant parts of the ICANN Base Registry Agreement (Specifications 6, 4, and 10) is in `docs/ICANN_COMPLIANCE.md`. Mapping against ICANN Registry System Testing (RST) v2026.06 EPP cases is in `docs/RST_EPP.md`.
 
 ## AWS Deployment
 

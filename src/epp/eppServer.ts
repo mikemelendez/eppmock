@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import net from "node:net";
+import tls from "node:tls";
 import type { AppConfig } from "../config.js";
+import { isTlsEnabled } from "../config.js";
 import { EppFrameDecoder, encodeFrame } from "./framing.js";
 import { greeting, resultResponse } from "./responses.js";
 import type { EppSession } from "./types.js";
@@ -28,13 +31,14 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
     exitOnError: options?.exitOnError ?? true
   };
 
-  const server = net.createServer((socket) => {
+  const onConnection = (socket: net.Socket): void => {
     const decoder = new EppFrameDecoder();
     const session: EppSession = {
       id: randomUUID(),
       authenticated: false,
       connectedAt: new Date(),
-      lastCommandAt: new Date()
+      lastCommandAt: new Date(),
+      clientCertSha256: peerCertificateFingerprint(socket)
     };
 
     socket.write(encodeFrame(greeting(config.greetingServerId)));
@@ -47,7 +51,21 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
     socket.on("error", (error) => {
       console.error(`${resolved.label} socket error`, error);
     });
-  });
+  };
+
+  const server = isTlsEnabled(config)
+    ? tls.createServer(
+        {
+          cert: readFileSync(config.eppTlsCertPath as string),
+          key: readFileSync(config.eppTlsKeyPath as string),
+          ca: config.eppTlsCaPath ? readFileSync(config.eppTlsCaPath) : undefined,
+          requestCert: config.eppTlsRequireClientCert,
+          rejectUnauthorized: false,
+          minVersion: "TLSv1.2"
+        },
+        onConnection
+      )
+    : net.createServer(onConnection);
 
   server.on("error", (error: NodeJS.ErrnoException) => {
     const hint =
@@ -62,10 +80,25 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
   });
 
   server.listen(resolved.port, resolved.host, () => {
-    console.log(`${resolved.label} listening on ${resolved.host}:${resolved.port}`);
+    const mode = isTlsEnabled(config) ? "TLS" : "TCP";
+    console.log(`${resolved.label} listening on ${resolved.host}:${resolved.port} (${mode})`);
   });
 
   return server;
+}
+
+function peerCertificateFingerprint(socket: net.Socket): string | undefined {
+  if (!("getPeerCertificate" in socket) || typeof socket.getPeerCertificate !== "function") {
+    return undefined;
+  }
+
+  const certificate = (socket as tls.TLSSocket).getPeerCertificate();
+
+  if (!certificate || !("fingerprint256" in certificate) || !certificate.fingerprint256) {
+    return undefined;
+  }
+
+  return String(certificate.fingerprint256).replaceAll(":", "").toLowerCase();
 }
 
 async function handleChunk(

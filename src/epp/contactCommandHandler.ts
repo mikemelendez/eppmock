@@ -6,14 +6,17 @@ import {
   ObjectStatusProhibitsOperationError
 } from "../contact/contactService.js";
 import type { ContactPostalInfo } from "../contact/types.js";
+import { ObjectAssociationProhibitsOperationError } from "../registry/registryLinks.js";
 import { childNode, childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
 import {
+  contactAssociationProhibitsOperation,
   contactCheckResponse,
   contactCreateResponse,
   contactInfoResponse,
   contactNotAuthorized,
   contactObjectDoesNotExist,
-  contactObjectExists
+  contactObjectExists,
+  contactParameterPolicyError
 } from "./contactResponses.js";
 import { commandCompleted, objectStatusProhibitsOperation, syntaxError } from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
@@ -67,7 +70,16 @@ export class ContactCommandHandler implements CommandHandler {
     const contactCreate = childNode(value, "create");
     const id = text(childValue(contactCreate, "id"));
     const email = text(childValue(contactCreate, "email"));
-    const postalInfo = parsePostalInfo(childValue(contactCreate, "postalInfo"));
+    const voice = parsePhone(childValue(contactCreate, "voice"));
+    const fax = parsePhone(childValue(contactCreate, "fax"));
+
+    let postalInfo: ContactPostalInfo[];
+
+    try {
+      postalInfo = parsePostalInfo(childValue(contactCreate, "postalInfo"));
+    } catch {
+      return contactParameterPolicyError(context.transactionId);
+    }
 
     if (!id || !email || !context.session.clid) {
       return syntaxError(context.transactionId);
@@ -79,8 +91,10 @@ export class ContactCommandHandler implements CommandHandler {
         registrarId: context.session.clid,
         email,
         postalInfo,
-        voice: text(childValue(contactCreate, "voice")),
-        fax: text(childValue(contactCreate, "fax")),
+        voice: voice?.number,
+        voiceExt: voice?.ext,
+        fax: fax?.number,
+        faxExt: fax?.ext,
         authInfo: text(childValue(childNode(contactCreate, "authInfo"), "pw"))
       });
 
@@ -91,7 +105,7 @@ export class ContactCommandHandler implements CommandHandler {
       }
 
       if (error instanceof ContactValidationError) {
-        return syntaxError(context.transactionId);
+        return contactParameterPolicyError(context.transactionId);
       }
 
       throw error;
@@ -99,7 +113,8 @@ export class ContactCommandHandler implements CommandHandler {
   }
 
   private async info(value: unknown, context: CommandContext): Promise<string> {
-    const id = text(childValue(childNode(value, "info"), "id"));
+    const contactInfo = childNode(value, "info");
+    const id = text(childValue(contactInfo, "id"));
 
     if (!id) {
       return syntaxError(context.transactionId);
@@ -109,6 +124,13 @@ export class ContactCommandHandler implements CommandHandler {
 
     if (!contact) {
       return contactObjectDoesNotExist(context.transactionId);
+    }
+
+    const isSponsoringRegistrar = context.session.clid === contact.registrarId;
+    const providedAuthInfo = text(childValue(childNode(contactInfo, "authInfo"), "pw"));
+
+    if (!isSponsoringRegistrar && (!contact.authInfo || providedAuthInfo !== contact.authInfo)) {
+      return contactNotAuthorized(context.transactionId);
     }
 
     return contactInfoResponse(contact, context.transactionId);
@@ -123,14 +145,26 @@ export class ContactCommandHandler implements CommandHandler {
     }
 
     const change = childNode(contactUpdate, "chg");
+    const voice = parsePhone(childValue(change, "voice"));
+    const fax = parsePhone(childValue(change, "fax"));
+
+    let postalInfo: ContactPostalInfo[] | undefined;
+
+    try {
+      postalInfo = change ? parsePostalInfo(childValue(change, "postalInfo"), true) : undefined;
+    } catch {
+      return contactParameterPolicyError(context.transactionId);
+    }
 
     try {
       await this.contacts.update(id, context.session.clid, {
         statusesToAdd: parseStatuses(childValue(childNode(contactUpdate, "add"), "status")),
         statusesToRemove: parseStatuses(childValue(childNode(contactUpdate, "rem"), "status")),
-        postalInfo: change ? parsePostalInfo(childValue(change, "postalInfo")) : undefined,
-        voice: text(childValue(change, "voice")),
-        fax: text(childValue(change, "fax")),
+        postalInfo,
+        voice: voice?.number,
+        voiceExt: voice?.ext,
+        fax: fax?.number,
+        faxExt: fax?.ext,
         email: text(childValue(change, "email")),
         authInfo: text(childValue(childNode(change, "authInfo"), "pw"))
       });
@@ -143,6 +177,10 @@ export class ContactCommandHandler implements CommandHandler {
 
       if (error instanceof ObjectStatusProhibitsOperationError) {
         return objectStatusProhibitsOperation(context.transactionId);
+      }
+
+      if (error instanceof ContactValidationError) {
+        return contactParameterPolicyError(context.transactionId);
       }
 
       throw error;
@@ -168,42 +206,75 @@ export class ContactCommandHandler implements CommandHandler {
         return objectStatusProhibitsOperation(context.transactionId);
       }
 
+      if (error instanceof ObjectAssociationProhibitsOperationError) {
+        return contactAssociationProhibitsOperation(context.transactionId);
+      }
+
       throw error;
     }
   }
 }
 
-function parsePostalInfo(value: unknown): ContactPostalInfo[] {
-  return asArray(value).flatMap((entry) => {
-    const postal = node(entry);
+function parsePostalInfo(value: unknown, optional = false): ContactPostalInfo[] {
+  const entries = asArray(value);
 
-    if (!postal) {
+  if (entries.length === 0) {
+    if (optional) {
       return [];
     }
 
-    const type = postal["@_type"] === "loc" ? "loc" : "int";
+    throw new ContactValidationError("postalInfo is required");
+  }
+
+  return entries.map((entry) => {
+    const postal = node(entry);
+
+    if (!postal) {
+      throw new ContactValidationError("postalInfo is required");
+    }
+
+    const typeAttr = postal["@_type"];
+
+    if (typeAttr !== "int" && typeAttr !== "loc") {
+      throw new ContactValidationError("postalInfo type must be int or loc");
+    }
+
     const name = text(childValue(postal, "name"));
     const addr = childNode(postal, "addr");
     const city = text(childValue(addr, "city"));
     const cc = text(childValue(addr, "cc"));
 
     if (!name || !city || !cc) {
-      return [];
+      throw new ContactValidationError("postalInfo name, city, and cc are required");
     }
 
-    return [
-      {
-        type,
-        name,
-        org: text(childValue(postal, "org")),
-        street: stringValues(childValue(addr, "street")),
-        city,
-        sp: text(childValue(addr, "sp")),
-        pc: text(childValue(addr, "pc")),
-        cc
-      }
-    ];
+    return {
+      type: typeAttr,
+      name,
+      org: text(childValue(postal, "org")),
+      street: stringValues(childValue(addr, "street")),
+      city,
+      sp: text(childValue(addr, "sp")),
+      pc: text(childValue(addr, "pc")),
+      cc
+    };
   });
+}
+
+function parsePhone(value: unknown): { number: string; ext?: string } | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const number = text(value);
+  const extValue = node(value)?.["@_x"];
+  const ext = extValue === undefined || extValue === null ? undefined : String(extValue);
+
+  if (!number) {
+    return { number: "", ext };
+  }
+
+  return { number, ext };
 }
 
 function parseStatuses(value: unknown): string[] {
