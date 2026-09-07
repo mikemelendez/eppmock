@@ -12,7 +12,7 @@ Registry mock for the fictional TLD `.melendez`: EPP (RFC 5730–5734), WHOIS, R
 | `src/domain` / `src/contact` / `src/host` | Object policy and repositories |
 | `src/registry` | Cross-object links (linked delete, host objects, glue) |
 | `src/control` | Dashboard and HTTP control API |
-| `src/dns` | `.melendez` zone generation and DNSSEC signing |
+| `src/dns` | `.melendez` zone **file** generation and DNSSEC signing (not a live nameserver; see `docs/RST_DNS.md`) |
 | `src/whois` | TCP WHOIS (port 43) |
 | `src/rdap` | RDAP JSON (internal 8090; public via Caddy `/rdap`) |
 
@@ -126,7 +126,7 @@ Use **Auto login** so the dashboard sends `login` before your command. That path
 curl http://127.0.0.1:8080/health
 curl http://127.0.0.1:8080/domains
 curl http://127.0.0.1:8080/domains.csv
-curl 'http://127.0.0.1:8080/dns/zone?dnssec=true&keyAction=generate&nsec3Hash=1&nsec3Flags=0&nsec3Iterations=10&nsec3Salt=A1B2C3D4'
+curl 'http://127.0.0.1:8080/dns/zone?dnssec=true&keyAction=generate&nsec3Hash=1&nsec3Flags=0&nsec3Iterations=0&nsec3Salt=-'
 curl http://127.0.0.1:8080/commands
 ```
 
@@ -223,7 +223,7 @@ curl http://127.0.0.1:8090/nameserver/ns1.example.melendez
 
 ## Compliance
 
-A gap analysis mapping this tool against the technically relevant parts of the ICANN Base Registry Agreement (Specifications 6, 4, and 10) is in `docs/ICANN_COMPLIANCE.md`. Mapping against ICANN Registry System Testing (RST) v2026.06 EPP cases is in `docs/RST_EPP.md`.
+A gap analysis mapping this tool against the technically relevant parts of the ICANN Base Registry Agreement (Specifications 6, 4, and 10) is in `docs/ICANN_COMPLIANCE.md`. Mapping against ICANN Registry System Testing (RST) v2026.06 EPP cases is in `docs/RST_EPP.md`. Authoritative DNS / DNSSEC (live nameservers) is a separate suite: `docs/RST_DNS.md`.
 
 ## AWS Deployment
 

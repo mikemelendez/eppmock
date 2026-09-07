@@ -34,7 +34,7 @@ test("serves downloadable signed zones and CSV with DS records", async () => {
   try {
     const zoneResponse = await app.inject({
       method: "GET",
-      url: "/dns/zone?download=true&dnssec=true&nsec3Iterations=1"
+      url: "/dns/zone?download=true&dnssec=true"
     });
 
     assert.equal(zoneResponse.statusCode, 200);
@@ -42,6 +42,7 @@ test("serves downloadable signed zones and CSV with DS records", async () => {
     assert.match(zoneResponse.body, /@ IN DNSKEY 257 3 13 /);
     assert.match(zoneResponse.body, /signed IN DS 12345 13 2 ABCDEF/);
     assert.match(zoneResponse.body, / IN RRSIG /);
+    assert.match(zoneResponse.body, /@ IN NSEC3PARAM 1 0 0 -/);
 
     const csvResponse = await app.inject({ method: "GET", url: "/domains.csv" });
     assert.equal(csvResponse.statusCode, 200);

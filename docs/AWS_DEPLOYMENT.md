@@ -51,6 +51,9 @@ Inbound that should stay:
 
 Do not publish `7000`. Compose no longer maps it.
 
+Do **not** open UDP/TCP **53** on this EPP host for `StandardEPP`. Authoritative DNS / DNSSEC
+is a separate RST suite and needs two nameservers in different ASes; see `docs/RST_DNS.md`.
+
 AWS console: EC2 → Security Groups → inbound rules. Example CLI (substitute IDs):
 
 ```bash
@@ -260,11 +263,14 @@ Deleting it changes the generated DNSKEY and parent DS values.
 ## DNSSEC Operations
 
 The zone generator signs the `.melendez` zone with persisted ECDSA P-256 KSK/ZSK material. It
-emits DNSKEY, DS, RRSIG, NSEC3, and NSEC3PARAM records when DNSSEC is enabled.
+emits DNSKEY, DS, RRSIG, NSEC3, and NSEC3PARAM records when DNSSEC is enabled. It does **not**
+answer on port 53. For RST Authoritative DNS / DNSSEC, load that file on two public nameservers
+in different ASes (`docs/RST_DNS.md`).
 
-Use `Generate keys` for normal operation. It reuses existing keys from `DNSSEC_KEY_PATH`. Use
-`Renew keys` only when you intentionally want to rotate the ZSK and refresh the persisted key
-metadata. Back up the `epp_data` volume before renewal.
+Use NSEC3 iterations **0** and empty salt (`-`) so `dnssec-93` passes. Use `Generate keys` for
+normal operation. It reuses existing keys from `DNSSEC_KEY_PATH`. Use `Renew keys` only when you
+intentionally want to rotate the ZSK and refresh the persisted key metadata. Back up the
+`epp_data` volume before renewal. After a key change you must republish `dnssec.dsRecords`.
 
 ## Public URLs
 

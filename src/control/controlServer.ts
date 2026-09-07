@@ -76,11 +76,11 @@ const dnsZoneQuerySchema = z.object({
   keyAction: z.enum(["generate", "renew"]).default("generate"),
   nsec3Hash: z.coerce.number().int().min(1).max(255).default(1),
   nsec3Flags: z.coerce.number().int().min(0).max(255).default(0),
-  nsec3Iterations: z.coerce.number().int().min(0).max(2500).default(10),
+  nsec3Iterations: z.coerce.number().int().min(0).max(2500).default(0),
   nsec3Salt: z
     .string()
     .regex(/^[A-Fa-f0-9-]+$/)
-    .default("A1B2C3D4")
+    .default("-")
 });
 
 export async function startControlServer(

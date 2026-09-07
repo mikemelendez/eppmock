@@ -107,7 +107,7 @@ Status prohibitions (RFC 5731/5732/5733): `clientUpdateProhibited`, `serverUpdat
 | Requirement | Status | Evidence / Notes |
 | --- | --- | --- |
 | DNSSEC per RFCs 4033-4035, 4509 (DS/SHA-256), 5155 (NSEC3) | Partial | Zone generation with DNSKEY (KSK/ZSK), RRSIG, NSEC3/NSEC3PARAM, and DS records: [src/dns/melendezZone.ts](../src/dns/melendezZone.ts), [src/dns/dnssecSigner.ts](../src/dns/dnssecSigner.ts), [src/dns/dnssecKeyStore.ts](../src/dns/dnssecKeyStore.ts). |
-| Live signed authoritative DNS service | Missing | The tool generates a BIND-style zone file; it does not run a live signed authoritative server, and there is no automated key-rollover lifecycle. |
+| Live signed authoritative DNS service | Missing | The tool generates a BIND-style zone file; it does not run a live signed authoritative server, and there is no automated key-rollover lifecycle. RST Authoritative DNS / DNSSEC needs two public NS in different ASes; see [RST_DNS.md](RST_DNS.md). |
 
 ### 2.3 IDN (Specification 6, Section 1.4)
 

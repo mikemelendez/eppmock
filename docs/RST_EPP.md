@@ -72,4 +72,5 @@ use it on a production pre/post-delegation test; register a TLD-specific id.
 - RFC 9154 empty/secure authInfo (the extension is **not** advertised, so RST will not require it)
 - RFC 8807 Login Security (not advertised)
 - Recommended greeting extensions (`loginSec`, `changePoll`, `unhandled-namespaces`, `secure-authinfo-transfer`) — RST treats these as warnings
-- Live DNS / RDAP / RDE / IDN suites — those are separate RST suites, not `StandardEPP`
+- Live DNS / RDAP / RDE / IDN suites — those are separate RST suites, not `StandardEPP`. For
+  Authoritative DNS + DNSSEC, see [RST_DNS.md](RST_DNS.md).
