@@ -52,6 +52,7 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
     const session: EppSession = {
       id: randomUUID(),
       authenticated: false,
+      tls: resolved.tls,
       connectedAt: new Date(),
       lastCommandAt: new Date(),
       clientCertSha256: peerCertificateFingerprint(socket)

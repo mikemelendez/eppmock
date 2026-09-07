@@ -91,6 +91,40 @@ test("epp-02 greeting advertises domain/contact/host and mandatory extensions", 
   assert.match(xml, /urn:ietf:params:xml:ns:launch-1.0/);
 });
 
+test("dashboard plaintext login succeeds while TLS still requires a client certificate", async () => {
+  const handler = new AuthCommandHandler({
+    authUsers: defaultAuthUsers,
+    eppTlsRequireClientCert: true
+  });
+  const loginXml = `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><login><clID>melendez-admin</clID><pw>admin-secret</pw><options><version>1.0</version><lang>en</lang></options><svcs><objURI>urn:ietf:params:xml:ns:domain-1.0</objURI></svcs></login></command></epp>`;
+
+  const dashboard = await handler.handle(parseEppXml(loginXml), {
+    session: {
+      id: "dash",
+      authenticated: false,
+      tls: false,
+      connectedAt: new Date(),
+      lastCommandAt: new Date()
+    },
+    rawXml: loginXml,
+    transactionId: "dashboard-login"
+  });
+  assert.equal(resultCode(dashboard), "1000");
+
+  const tlsNoCert = await handler.handle(parseEppXml(loginXml), {
+    session: {
+      id: "tls",
+      authenticated: false,
+      tls: true,
+      connectedAt: new Date(),
+      lastCommandAt: new Date()
+    },
+    rawXml: loginXml,
+    transactionId: "rst-login"
+  });
+  assert.equal(resultCode(tlsNoCert), "2200");
+});
+
 test("epp-03 rejects unknown client and wrong password", async () => {
   const handler = new AuthCommandHandler({ authUsers: defaultAuthUsers, eppTlsRequireClientCert: false });
   const unknown = await handler.handle(

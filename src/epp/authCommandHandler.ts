@@ -78,6 +78,12 @@ export class AuthCommandHandler implements CommandHandler {
     user: { clid: string; clientCertSha256?: string },
     context: CommandContext
   ): boolean {
+    // The dashboard talks to the localhost plaintext listener. Client-certificate
+    // binding is only for the public TLS port (RST epp-03).
+    if (!context.session.tls) {
+      return true;
+    }
+
     const requireCert = this.config.eppTlsRequireClientCert;
     const anyMappedCert = this.config.authUsers.some((authUser) => authUser.clientCertSha256);
 
