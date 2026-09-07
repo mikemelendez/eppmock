@@ -6,6 +6,9 @@ import { parseEppXml } from "./xml.js";
 import { DomainCommandHandler } from "./domainCommandHandler.js";
 import type { CommandContext } from "./types.js";
 
+const SHA256_A = "A".repeat(64);
+const SHA256_B = "B".repeat(64);
+
 test("persists secDNS DS records from create and update commands", async () => {
   const repository = new InMemoryDomainRepository();
   const service = new DomainService(repository);
@@ -21,14 +24,14 @@ test("persists secDNS DS records from create and update commands", async () => {
     rawXml: ""
   };
 
-  await handler.handle(parseEppXml(createXml("12345", "AAAAAAAAAAAAAAAA")), context);
+  await handler.handle(parseEppXml(createXml("12345", SHA256_A)), context);
   let domain = await service.findByName("signed.melendez");
   assert.equal(domain?.dsRecords.length, 1);
   assert.deepEqual(domain?.dsRecords[0], {
     keyTag: 12345,
     algorithm: 13,
     digestType: 2,
-    digest: "AAAAAAAAAAAAAAAA"
+    digest: SHA256_A
   });
 
   await handler.handle(parseEppXml(updateXml()), context);
@@ -38,13 +41,13 @@ test("persists secDNS DS records from create and update commands", async () => {
     keyTag: 54321,
     algorithm: 13,
     digestType: 2,
-    digest: "BBBBBBBBBBBBBBBB"
+    digest: SHA256_B
   });
 
   const response = await handler.handle(parseEppXml(infoXml()), context);
   assert.match(response, /<secDNS:infData/);
   assert.match(response, /<secDNS:keyTag>54321<\/secDNS:keyTag>/);
-  assert.match(response, /<secDNS:digest>BBBBBBBBBBBBBBBB<\/secDNS:digest>/);
+  assert.match(response, new RegExp(`<secDNS:digest>${SHA256_B}</secDNS:digest>`));
 });
 
 test("canonicalizes IDNs and rejects domains outside .melendez policy", async () => {
@@ -232,7 +235,7 @@ function updateXml(): string {
             <secDNS:keyTag>54321</secDNS:keyTag>
             <secDNS:alg>13</secDNS:alg>
             <secDNS:digestType>2</secDNS:digestType>
-            <secDNS:digest>BBBBBBBBBBBBBBBB</secDNS:digest>
+            <secDNS:digest>${SHA256_B}</secDNS:digest>
           </secDNS:dsData>
         </secDNS:add>
         <secDNS:rem>
@@ -240,7 +243,7 @@ function updateXml(): string {
             <secDNS:keyTag>12345</secDNS:keyTag>
             <secDNS:alg>13</secDNS:alg>
             <secDNS:digestType>2</secDNS:digestType>
-            <secDNS:digest>AAAAAAAAAAAAAAAA</secDNS:digest>
+            <secDNS:digest>${SHA256_A}</secDNS:digest>
           </secDNS:dsData>
         </secDNS:rem>
       </secDNS:update>

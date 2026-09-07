@@ -111,6 +111,8 @@ function testConfig(dnssecKeyPath: string, overrides: Partial<AppConfig> = {}): 
     storageMode: "memory",
     sqlitePath: ":memory:",
     dnssecKeyPath,
+    repositoryId: "ICANNRST",
+    eppTlsRequireClientCert: false,
     ...overrides
   };
 }

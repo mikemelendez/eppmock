@@ -2,6 +2,7 @@ export interface EppSession {
   id: string;
   authenticated: boolean;
   clid?: string;
+  clientCertSha256?: string;
   connectedAt: Date;
   lastCommandAt: Date;
 }

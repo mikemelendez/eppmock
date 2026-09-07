@@ -73,7 +73,7 @@ export function hostInfoResponse(host: HostRecord, transactionId?: string): stri
               "#text": address.ip
             })),
             "host:clID": host.registrarId,
-            "host:crID": host.registrarId,
+            "host:crID": host.creatorId ?? host.registrarId,
             "host:crDate": host.createdAt,
             "host:upDate": host.updatedAt
           }
@@ -98,6 +98,10 @@ export function hostNotAuthorized(transactionId?: string): string {
 
 export function hostParameterPolicyError(transactionId?: string): string {
   return hostErrorResponse(2005, "Parameter value policy error", transactionId);
+}
+
+export function hostAssociationProhibitsOperation(transactionId?: string): string {
+  return hostErrorResponse(2305, "Object association prohibits operation", transactionId);
 }
 
 function hostErrorResponse(code: number, message: string, transactionId?: string): string {

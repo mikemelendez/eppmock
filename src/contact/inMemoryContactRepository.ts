@@ -1,3 +1,4 @@
+import { allocateRoid } from "../epp/roid.js";
 import type {
   ContactRecord,
   ContactRepository,
@@ -11,41 +12,44 @@ export class InMemoryContactRepository implements ContactRepository {
   async checkAvailability(ids: string[]): Promise<Array<{ id: string; available: boolean }>> {
     return ids.map((id) => ({
       id,
-      available: !this.contacts.has(normalizeId(id))
+      available: !this.contacts.has(normalizeLookup(id))
     }));
   }
 
   async create(input: CreateContactInput): Promise<ContactRecord> {
-    const id = normalizeId(input.id);
+    const lookup = normalizeLookup(input.id);
 
-    if (this.contacts.has(id)) {
-      throw new Error(`Contact ${id} already exists`);
+    if (this.contacts.has(lookup)) {
+      throw new Error(`Contact ${input.id} already exists`);
     }
 
     const record: ContactRecord = {
-      id,
+      id: input.id.trim(),
       registrarId: input.registrarId,
-      roid: `${id.toUpperCase()}-EPP`,
+      creatorId: input.registrarId,
+      roid: allocateRoid("C"),
       statuses: ["ok"],
       postalInfo: input.postalInfo,
       voice: input.voice,
+      voiceExt: input.voiceExt,
       fax: input.fax,
+      faxExt: input.faxExt,
       email: input.email,
       authInfo: input.authInfo,
       createdAt: new Date().toISOString()
     };
 
-    this.contacts.set(id, record);
+    this.contacts.set(lookup, record);
     return record;
   }
 
   async findById(id: string): Promise<ContactRecord | null> {
-    return this.contacts.get(normalizeId(id)) ?? null;
+    return this.contacts.get(normalizeLookup(id)) ?? null;
   }
 
   async update(id: string, registrarId: string, input: UpdateContactInput): Promise<ContactRecord | null> {
-    const normalizedId = normalizeId(id);
-    const contact = this.contacts.get(normalizedId);
+    const lookup = normalizeLookup(id);
+    const contact = this.contacts.get(lookup);
 
     if (!contact || contact.registrarId !== registrarId) {
       return null;
@@ -53,30 +57,30 @@ export class InMemoryContactRepository implements ContactRepository {
 
     const updated: ContactRecord = {
       ...contact,
-      statuses: normalizeStatuses(
-        updateList(contact.statuses, input.statusesToAdd, input.statusesToRemove)
-      ),
+      statuses: normalizeStatuses(updateList(contact.statuses, input.statusesToAdd, input.statusesToRemove)),
       postalInfo: input.postalInfo ?? contact.postalInfo,
       voice: input.voice ?? contact.voice,
+      voiceExt: input.voiceExt ?? contact.voiceExt,
       fax: input.fax ?? contact.fax,
+      faxExt: input.faxExt ?? contact.faxExt,
       email: input.email ?? contact.email,
       authInfo: input.authInfo ?? contact.authInfo,
       updatedAt: new Date().toISOString()
     };
 
-    this.contacts.set(normalizedId, updated);
+    this.contacts.set(lookup, updated);
     return updated;
   }
 
   async delete(id: string, registrarId: string): Promise<boolean> {
-    const normalizedId = normalizeId(id);
-    const contact = this.contacts.get(normalizedId);
+    const lookup = normalizeLookup(id);
+    const contact = this.contacts.get(lookup);
 
     if (!contact || contact.registrarId !== registrarId) {
       return false;
     }
 
-    return this.contacts.delete(normalizedId);
+    return this.contacts.delete(lookup);
   }
 
   async list(): Promise<ContactRecord[]> {
@@ -87,12 +91,16 @@ export class InMemoryContactRepository implements ContactRepository {
     this.contacts.clear();
 
     for (const record of records) {
-      this.contacts.set(normalizeId(record.id), { ...record, id: normalizeId(record.id) });
+      this.contacts.set(normalizeLookup(record.id), {
+        ...record,
+        id: record.id.trim(),
+        creatorId: record.creatorId ?? record.registrarId
+      });
     }
   }
 }
 
-function normalizeId(id: string): string {
+function normalizeLookup(id: string): string {
   return id.trim().toLowerCase();
 }
 

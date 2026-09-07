@@ -7,8 +7,10 @@ import {
   ObjectStatusProhibitsOperationError
 } from "../host/hostService.js";
 import type { HostAddress } from "../host/types.js";
+import { ObjectAssociationProhibitsOperationError } from "../registry/registryLinks.js";
 import { childNode, childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
 import {
+  hostAssociationProhibitsOperation,
   hostCheckResponse,
   hostCreateResponse,
   hostInfoResponse,
@@ -95,6 +97,10 @@ export class HostCommandHandler implements CommandHandler {
         return hostObjectExists(context.transactionId);
       }
 
+      if (error instanceof HostNotFoundOrUnauthorizedError) {
+        return hostNotAuthorized(context.transactionId);
+      }
+
       if (error instanceof HostValidationError) {
         return hostParameterPolicyError(context.transactionId);
       }
@@ -115,6 +121,10 @@ export class HostCommandHandler implements CommandHandler {
 
       if (!host) {
         return hostObjectDoesNotExist(context.transactionId);
+      }
+
+      if (context.session.clid !== host.registrarId) {
+        return hostNotAuthorized(context.transactionId);
       }
 
       return hostInfoResponse(host, context.transactionId);
@@ -147,7 +157,8 @@ export class HostCommandHandler implements CommandHandler {
         addressesToAdd,
         addressesToRemove,
         statusesToAdd: parseStatuses(childValue(childNode(hostUpdate, "add"), "status")),
-        statusesToRemove: parseStatuses(childValue(childNode(hostUpdate, "rem"), "status"))
+        statusesToRemove: parseStatuses(childValue(childNode(hostUpdate, "rem"), "status")),
+        newName: text(childValue(childNode(hostUpdate, "chg"), "name"))
       });
 
       return commandCompleted(context.transactionId);
@@ -160,8 +171,16 @@ export class HostCommandHandler implements CommandHandler {
         return objectStatusProhibitsOperation(context.transactionId);
       }
 
+      if (error instanceof ObjectAssociationProhibitsOperationError) {
+        return hostAssociationProhibitsOperation(context.transactionId);
+      }
+
       if (error instanceof HostValidationError) {
         return hostParameterPolicyError(context.transactionId);
+      }
+
+      if (error instanceof HostAlreadyExistsError) {
+        return hostObjectExists(context.transactionId);
       }
 
       throw error;
@@ -187,6 +206,10 @@ export class HostCommandHandler implements CommandHandler {
         return objectStatusProhibitsOperation(context.transactionId);
       }
 
+      if (error instanceof ObjectAssociationProhibitsOperationError) {
+        return hostAssociationProhibitsOperation(context.transactionId);
+      }
+
       if (error instanceof HostValidationError) {
         return hostParameterPolicyError(context.transactionId);
       }
@@ -197,19 +220,28 @@ export class HostCommandHandler implements CommandHandler {
 }
 
 /**
- * Parses host:addr nodes. Returns null when an address fails IP-family validation.
+ * Parses host:addr nodes. Returns null when an address fails IP-family validation
+ * or uses an unknown ip attribute (RST epp-11/epp-13).
  */
 function parseAddresses(value: unknown): HostAddress[] | null {
+  if (value === undefined) {
+    return [];
+  }
+
   const addresses: HostAddress[] = [];
 
   for (const entry of asArray(value)) {
     const ip = text(entry);
+    const declared = node(entry)?.["@_ip"];
 
-    if (!ip) {
-      continue;
+    if (declared !== undefined && declared !== "v4" && declared !== "v6") {
+      return null;
     }
 
-    const declared = node(entry)?.["@_ip"];
+    if (!ip) {
+      return null;
+    }
+
     const version = declared === "v6" ? "v6" : "v4";
     const detected = isIP(ip);
 

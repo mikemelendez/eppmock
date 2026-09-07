@@ -80,11 +80,19 @@ export function contactInfoResponse(contact: ContactRecord, transactionId?: stri
                 "contact:cc": postal.cc
               }
             })),
-            "contact:voice": contact.voice,
-            "contact:fax": contact.fax,
+            "contact:voice": contact.voice
+              ? contact.voiceExt
+                ? { "@_x": contact.voiceExt, "#text": contact.voice }
+                : contact.voice
+              : undefined,
+            "contact:fax": contact.fax
+              ? contact.faxExt
+                ? { "@_x": contact.faxExt, "#text": contact.fax }
+                : contact.fax
+              : undefined,
             "contact:email": contact.email,
             "contact:clID": contact.registrarId,
-            "contact:crID": contact.registrarId,
+            "contact:crID": contact.creatorId ?? contact.registrarId,
             "contact:crDate": contact.createdAt,
             "contact:upDate": contact.updatedAt,
             "contact:authInfo": contact.authInfo
@@ -108,6 +116,14 @@ export function contactObjectDoesNotExist(transactionId?: string): string {
 
 export function contactNotAuthorized(transactionId?: string): string {
   return contactErrorResponse(2201, "Authorization error", transactionId);
+}
+
+export function contactAssociationProhibitsOperation(transactionId?: string): string {
+  return contactErrorResponse(2305, "Object association prohibits operation", transactionId);
+}
+
+export function contactParameterPolicyError(transactionId?: string): string {
+  return contactErrorResponse(2005, "Parameter value policy error", transactionId);
 }
 
 function contactErrorResponse(code: number, message: string, transactionId?: string): string {

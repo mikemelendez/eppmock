@@ -22,9 +22,13 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package*.json ./
+COPY deploy/docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY deploy/export-caddy-certs.mjs /app/export-caddy-certs.mjs
 
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data /app/certs \
+  && chmod +x /app/docker-entrypoint.sh
 
-EXPOSE 43 7000 8080
+EXPOSE 43 700 8080
 
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "dist/index.js"]

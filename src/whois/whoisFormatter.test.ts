@@ -6,6 +6,8 @@ import { formatWhoisResponse } from "./whoisFormatter.js";
 const domain: DomainRecord = {
   name: "xn--caf-dma.melendez",
   registrarId: "melendez-admin",
+  creatorId: "melendez-admin",
+  roid: "DTEST1-ICANNRST",
   periodYears: 1,
   statuses: ["ok"],
   nameservers: ["ns1.xn--caf-dma.melendez"],

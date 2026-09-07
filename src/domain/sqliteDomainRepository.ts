@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import Database from "better-sqlite3";
+import { allocateRoid } from "../epp/roid.js";
 import type {
   CreateDomainInput,
   DomainRecord,
@@ -12,6 +13,8 @@ import type {
 interface DomainRow {
   name: string;
   registrar_id: string;
+  creator_id: string | null;
+  roid: string | null;
   period_years: number;
   statuses_json: string;
   nameservers_json: string | null;
@@ -59,6 +62,8 @@ export class SqliteDomainRepository implements DomainRepository {
     const record: DomainRecord = {
       name: normalizeDomainName(input.name),
       registrarId: input.registrarId,
+      creatorId: input.registrarId,
+      roid: allocateRoid("D"),
       periodYears,
       statuses: ["ok"],
       nameservers: unique(input.nameservers ?? []),
@@ -67,7 +72,8 @@ export class SqliteDomainRepository implements DomainRepository {
       authInfo: input.authInfo,
       dsRecords: input.dsRecords ?? [],
       createdAt: createdAt.toISOString(),
-      expiresAt: expiresAt.toISOString()
+      expiresAt: expiresAt.toISOString(),
+      rgpStatus: "addPeriod"
     };
 
     this.insert(record);
@@ -127,6 +133,7 @@ export class SqliteDomainRepository implements DomainRepository {
       ...domain,
       periodYears,
       expiresAt: expiresAt.toISOString(),
+      rgpStatus: "renewPeriod",
       updatedAt: new Date().toISOString()
     };
 
@@ -137,7 +144,8 @@ export class SqliteDomainRepository implements DomainRepository {
   async setTransfer(
     name: string,
     operation: "request" | "approve" | "reject" | "cancel" | "query",
-    registrarId: string
+    registrarId: string,
+    periodYears?: number
   ): Promise<DomainRecord | null> {
     const domain = await this.findByName(name);
 
@@ -145,11 +153,20 @@ export class SqliteDomainRepository implements DomainRepository {
       return null;
     }
 
+    if (operation === "query") {
+      return domain;
+    }
+
     const now = new Date().toISOString();
     const transferStatus = transferStatusFor(operation, domain.transfer?.status);
+    const transferPeriod = periodYears ?? domain.transfer?.periodYears ?? 1;
+    const expiresAt =
+      transferStatus === "approved" ? addYears(domain.expiresAt, transferPeriod) : domain.expiresAt;
     const updated: DomainRecord = {
       ...domain,
-      registrarId: transferStatus === "approved" ? registrarId : domain.registrarId,
+      registrarId: transferStatus === "approved" ? domain.transfer?.requestedBy ?? registrarId : domain.registrarId,
+      expiresAt,
+      rgpStatus: transferStatus === "approved" ? "transferPeriod" : domain.rgpStatus,
       statuses: normalizeStatuses(
         transferStatus === "pending"
           ? [...domain.statuses, "pendingTransfer"]
@@ -159,13 +176,32 @@ export class SqliteDomainRepository implements DomainRepository {
         status: transferStatus,
         requestedBy: domain.transfer?.requestedBy ?? registrarId,
         requestedAt: domain.transfer?.requestedAt ?? now,
-        updatedAt: now
+        updatedAt: now,
+        periodYears: transferPeriod
       },
       updatedAt: now
     };
 
     this.save(updated);
     return updated;
+  }
+
+  async replaceHostName(oldName: string, newName: string): Promise<void> {
+    const from = oldName.trim().toLowerCase();
+    const to = newName.trim().toLowerCase();
+    const domains = await this.list();
+
+    for (const domain of domains) {
+      if (!domain.nameservers.some((ns) => ns.toLowerCase() === from)) {
+        continue;
+      }
+
+      this.save({
+        ...domain,
+        nameservers: unique(domain.nameservers.map((ns) => (ns.toLowerCase() === from ? to : ns))),
+        updatedAt: new Date().toISOString()
+      });
+    }
   }
 
   async list(): Promise<DomainRecord[]> {
@@ -203,6 +239,8 @@ export class SqliteDomainRepository implements DomainRepository {
         `INSERT INTO domains (
           name,
           registrar_id,
+          creator_id,
+          roid,
           period_years,
           statuses_json,
           nameservers_json,
@@ -215,7 +253,7 @@ export class SqliteDomainRepository implements DomainRepository {
           expires_at,
           transfer_json,
           rgp_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(...domainValues(record));
   }
@@ -225,6 +263,8 @@ export class SqliteDomainRepository implements DomainRepository {
       .prepare(
         `UPDATE domains SET
           registrar_id = ?,
+          creator_id = ?,
+          roid = ?,
           period_years = ?,
           statuses_json = ?,
           nameservers_json = ?,
@@ -270,7 +310,9 @@ export class SqliteDomainRepository implements DomainRepository {
       ["ds_records_json", "ALTER TABLE domains ADD COLUMN ds_records_json TEXT"],
       ["updated_at", "ALTER TABLE domains ADD COLUMN updated_at TEXT"],
       ["transfer_json", "ALTER TABLE domains ADD COLUMN transfer_json TEXT"],
-      ["rgp_status", "ALTER TABLE domains ADD COLUMN rgp_status TEXT"]
+      ["rgp_status", "ALTER TABLE domains ADD COLUMN rgp_status TEXT"],
+      ["creator_id", "ALTER TABLE domains ADD COLUMN creator_id TEXT"],
+      ["roid", "ALTER TABLE domains ADD COLUMN roid TEXT"]
     ];
 
     for (const [column, sql] of migrations) {
@@ -282,6 +324,8 @@ export class SqliteDomainRepository implements DomainRepository {
 }
 
 function domainValues(record: DomainRecord): [
+  string,
+  string,
   string,
   string,
   number,
@@ -300,6 +344,8 @@ function domainValues(record: DomainRecord): [
   return [
     record.name,
     record.registrarId,
+    record.creatorId ?? record.registrarId,
+    record.roid || allocateRoid("D"),
     record.periodYears,
     JSON.stringify(record.statuses),
     JSON.stringify(record.nameservers),
@@ -319,6 +365,8 @@ function mapDomainRow(row: DomainRow): DomainRecord {
   return normalizeRecord({
     name: row.name,
     registrarId: row.registrar_id,
+    creatorId: row.creator_id ?? row.registrar_id,
+    roid: row.roid || allocateRoid("D"),
     periodYears: row.period_years,
     statuses: parseStringArray(row.statuses_json, ["ok"]),
     nameservers: parseStringArray(row.nameservers_json, []),
@@ -337,6 +385,8 @@ function mapDomainRow(row: DomainRow): DomainRecord {
 function normalizeRecord(record: DomainRecord): DomainRecord {
   return {
     ...record,
+    creatorId: record.creatorId ?? record.registrarId,
+    roid: record.roid || allocateRoid("D"),
     name: normalizeDomainName(record.name),
     statuses: normalizeStatuses(record.statuses ?? ["ok"]),
     nameservers: unique(record.nameservers ?? []),
@@ -407,6 +457,12 @@ function parseTransfer(value: string | null): DomainRecord["transfer"] {
 
   const parsed = JSON.parse(value) as DomainRecord["transfer"];
   return parsed;
+}
+
+function addYears(isoDate: string, years: number): string {
+  const date = new Date(isoDate);
+  date.setFullYear(date.getFullYear() + years);
+  return date.toISOString();
 }
 
 function resolveRgpStatus(current: string | undefined, next: string | null | undefined): string | undefined {

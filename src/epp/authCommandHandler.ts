@@ -4,6 +4,7 @@ import { supportedObjectUris } from "./responses.js";
 import {
   authenticationError,
   commandCompleted,
+  sessionEnded,
   syntaxError,
   unimplementedObjectService,
   unimplementedOption,
@@ -12,7 +13,7 @@ import {
 import type { CommandContext, CommandHandler } from "./types.js";
 
 export class AuthCommandHandler implements CommandHandler {
-  constructor(private readonly config: Pick<AppConfig, "authUsers">) {}
+  constructor(private readonly config: Pick<AppConfig, "authUsers" | "eppTlsRequireClientCert">) {}
 
   async handle(document: Record<string, unknown>, context: CommandContext): Promise<string> {
     const command = getCommand(document);
@@ -27,7 +28,7 @@ export class AuthCommandHandler implements CommandHandler {
 
     if ("logout" in command) {
       context.session.authenticated = false;
-      return commandCompleted(context.transactionId);
+      return sessionEnded(context.transactionId);
     }
 
     return syntaxError(context.transactionId);
@@ -64,8 +65,58 @@ export class AuthCommandHandler implements CommandHandler {
       return authenticationError(context.transactionId);
     }
 
+    if (!this.clientCertificateAccepted(user, context)) {
+      return authenticationError(context.transactionId);
+    }
+
     context.session.authenticated = true;
     context.session.clid = clid;
     return commandCompleted(context.transactionId);
   }
+
+  private clientCertificateAccepted(
+    user: { clid: string; clientCertSha256?: string },
+    context: CommandContext
+  ): boolean {
+    const requireCert = this.config.eppTlsRequireClientCert;
+    const anyMappedCert = this.config.authUsers.some((authUser) => authUser.clientCertSha256);
+
+    if (!requireCert && !anyMappedCert) {
+      return true;
+    }
+
+    const presented = normalizeFingerprint(context.session.clientCertSha256);
+
+    if (!presented) {
+      return !requireCert && !anyMappedCert;
+    }
+
+    const owner = this.config.authUsers.find(
+      (authUser) => normalizeFingerprint(authUser.clientCertSha256) === presented
+    );
+
+    if (owner && owner.clid !== user.clid) {
+      return false;
+    }
+
+    const expected = normalizeFingerprint(user.clientCertSha256);
+
+    if (expected && expected !== presented) {
+      return false;
+    }
+
+    if (requireCert && !expected && !owner) {
+      return false;
+    }
+
+    return true;
+  }
+}
+
+function normalizeFingerprint(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return value.replaceAll(":", "").replaceAll(" ", "").toLowerCase();
 }

@@ -39,6 +39,7 @@ import {
   unknownCommand
 } from "./responses.js";
 import type { CommandContext } from "./types.js";
+import { allocateRoid } from "./roid.js";
 import { asArray, buildEppXml } from "./xml.js";
 
 const MOCK_REGISTRAR = "mock-registrar";
@@ -389,6 +390,8 @@ function synthDomain(
   return {
     name,
     registrarId,
+    creatorId: registrarId,
+    roid: allocateRoid("D"),
     periodYears: period,
     statuses: ["ok"],
     nameservers: nameservers.length > 0 ? nameservers : fillDefaults ? [`ns1.${name}`, `ns2.${name}`] : [],
@@ -405,7 +408,8 @@ function synthContact(id: string, registrarId: string): ContactRecord {
   return {
     id,
     registrarId,
-    roid: `${id.toUpperCase()}-EPP`,
+    creatorId: registrarId,
+    roid: allocateRoid("C"),
     statuses: ["ok"],
     postalInfo: [
       {
@@ -433,7 +437,8 @@ function synthHost(
   return {
     name,
     registrarId,
-    roid: `${name.toUpperCase()}-EPP`,
+    creatorId: registrarId,
+    roid: allocateRoid("H"),
     statuses: ["ok"],
     addresses:
       addresses.length > 0

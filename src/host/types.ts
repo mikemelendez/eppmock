@@ -6,6 +6,7 @@ export interface HostAddress {
 export interface HostRecord {
   name: string;
   registrarId: string;
+  creatorId: string;
   roid: string;
   statuses: string[];
   addresses: HostAddress[];
@@ -24,6 +25,7 @@ export interface UpdateHostInput {
   addressesToRemove?: HostAddress[];
   statusesToAdd?: string[];
   statusesToRemove?: string[];
+  newName?: string;
 }
 
 export interface HostRepository {

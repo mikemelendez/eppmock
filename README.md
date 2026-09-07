@@ -49,7 +49,8 @@ The registry accepts only second-level `.melendez` domains. Unicode IDNs are acc
 Available variables:
 
 - `EPP_HOST`, default `127.0.0.1`
-- `EPP_PORT`, default `7000` (database-backed EPP service)
+- `EPP_PORT`, default `7000` locally; AWS compose uses `700` (IANA EPP)
+- `EPP_DASHBOARD_HOST` / `EPP_DASHBOARD_PORT`, optional localhost plaintext listener so the dashboard can log in without a client certificate while port 700 requires TLS
 - `EPP_MOCK_HOST`, default `127.0.0.1`
 - `EPP_MOCK_PORT`, default `7001` (stateless data-based mock service)
 - `WHOIS_HOST`, default `127.0.0.1`
@@ -60,8 +61,11 @@ Available variables:
 - `RDAP_PORT`, default `8090`
 - `GREETING_SERVER_ID`, default `epp-testing-tool`
 - `REGISTRY_TLD`, default `melendez`
-- `EPP_USERS`, optional JSON array of `{ "clid": "...", "password": "..." }`
+- `EPP_USERS`, optional JSON array of `{ "clid": "...", "password": "...", "clientCertSha256": "..." }`
 - `EPP_CLID` / `EPP_PASSWORD`, optional legacy override for the first default user
+- `EPP_TLS_CERT` / `EPP_TLS_KEY` / `EPP_TLS_CA`, optional PEM paths; when cert+key are set the EPP port uses TLS 1.2+ (RFC 5734)
+- `EPP_TLS_REQUIRE_CLIENT_CERT`, default `true` when TLS is enabled; login then requires a client certificate bound to the registrar
+- `EPP_REPOSITORY_ID`, default `ICANNRST` (IANA id used in ROIDs)
 - `RESET_HTTP_USER`, default `admin`
 - `RESET_HTTP_PASSWORD`, default `reset-secret`
 - `STORAGE_MODE`, default `sqlite`, values: `sqlite` or `memory`
@@ -250,13 +254,13 @@ Example: a `domain:create` for `valid.melendez` on port 7001 returns `1000`; the
 
 ## Compliance
 
-A gap analysis mapping this tool against the technically relevant parts of the ICANN Base Registry Agreement (Specifications 6, 4, and 10) is in `docs/ICANN_COMPLIANCE.md`. The technical remediation backlog has been implemented: RDAP, EPP contact (5733) and host (5732) objects, RGP (3915), launch phase (8334), EPP core polish (clTRID echo, login validation, poll `<msgQ>`), the WHOIS limited-data disclaimer, a Latin IDN table, and IPv4/IPv6 glue. The legal/operational provisions remain out of scope.
+A gap analysis mapping this tool against the technically relevant parts of the ICANN Base Registry Agreement (Specifications 6, 4, and 10) is in `docs/ICANN_COMPLIANCE.md`. Mapping against ICANN Registry System Testing (RST) v2026.06 EPP cases is in `docs/RST_EPP.md`.
 
 ## AWS Deployment
 
 Deployment is configured for AWS EC2 using Docker Compose, Caddy, and GitHub Actions.
 
-See `docs/AWS_DEPLOYMENT.md` for the EC2 setup, GitHub secrets, security group ports, and DNS instructions for `eppmock.melendez.mx`.
+See `docs/AWS_DEPLOYMENT.md` for the EC2 setup, GitHub secrets, security group ports, and DNS instructions for `eppmock.melendez.mx`. Production EPP is TLS on `eppmock.melendez.mx:700`; the dashboard keeps a localhost plaintext listener on `7000`.
 
 ## Next Step Toward PostgreSQL
 

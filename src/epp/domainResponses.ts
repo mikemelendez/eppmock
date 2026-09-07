@@ -97,7 +97,7 @@ export function domainInfoResponse(domain: DomainRecord, transactionId?: string)
           "domain:infData": {
             ...domainAttributes,
             "domain:name": domain.name,
-            "domain:roid": `${domain.name}-EPP`,
+            "domain:roid": domain.roid,
             "domain:status": domain.statuses.map((status) => ({ "@_s": status })),
             "domain:registrant": domain.registrantContact,
             "domain:contact": domain.contacts.map((contact) => ({
@@ -110,7 +110,7 @@ export function domainInfoResponse(domain: DomainRecord, transactionId?: string)
                 }
               : undefined,
             "domain:clID": domain.registrarId,
-            "domain:crID": domain.registrarId,
+            "domain:crID": domain.creatorId ?? domain.registrarId,
             "domain:crDate": domain.createdAt,
             "domain:upDate": domain.updatedAt,
             "domain:trDate": domain.transfer?.updatedAt,
@@ -298,6 +298,14 @@ export function objectNotAuthorized(transactionId?: string): string {
 
 export function parameterValuePolicyError(transactionId?: string): string {
   return domainErrorResponse(2005, "Parameter value policy error", transactionId);
+}
+
+export function requiredParameterMissing(transactionId?: string): string {
+  return domainErrorResponse(2003, "Required parameter missing", transactionId);
+}
+
+export function associationProhibitsOperation(transactionId?: string): string {
+  return domainErrorResponse(2305, "Object association prohibits operation", transactionId);
 }
 
 function domainErrorResponse(code: number, message: string, transactionId?: string): string {

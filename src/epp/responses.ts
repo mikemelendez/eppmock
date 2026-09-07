@@ -78,6 +78,10 @@ export function commandCompleted(transactionId?: string): string {
   return resultResponse(1000, "Command completed successfully", transactionId);
 }
 
+export function sessionEnded(transactionId?: string): string {
+  return resultResponse(1500, "Command completed successfully; ending session", transactionId);
+}
+
 export function authenticationError(transactionId?: string): string {
   return resultResponse(2200, "Authentication error", transactionId);
 }

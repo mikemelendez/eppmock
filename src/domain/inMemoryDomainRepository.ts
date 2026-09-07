@@ -1,3 +1,4 @@
+import { allocateRoid } from "../epp/roid.js";
 import type {
   CreateDomainInput,
   DomainRecord,
@@ -30,6 +31,8 @@ export class InMemoryDomainRepository implements DomainRepository {
     const record: DomainRecord = {
       name,
       registrarId: input.registrarId,
+      creatorId: input.registrarId,
+      roid: allocateRoid("D"),
       periodYears: input.periodYears ?? 1,
       statuses: ["ok"],
       nameservers: unique(input.nameservers ?? []),
@@ -38,7 +41,8 @@ export class InMemoryDomainRepository implements DomainRepository {
       authInfo: input.authInfo,
       dsRecords: input.dsRecords ?? [],
       createdAt: createdAt.toISOString(),
-      expiresAt: expiresAt.toISOString()
+      expiresAt: expiresAt.toISOString(),
+      rgpStatus: "addPeriod"
     };
 
     this.domains.set(name, record);
@@ -99,6 +103,7 @@ export class InMemoryDomainRepository implements DomainRepository {
       ...domain,
       periodYears,
       expiresAt: expiresAt.toISOString(),
+      rgpStatus: "renewPeriod",
       updatedAt: new Date().toISOString()
     };
 
@@ -109,7 +114,8 @@ export class InMemoryDomainRepository implements DomainRepository {
   async setTransfer(
     name: string,
     operation: "request" | "approve" | "reject" | "cancel" | "query",
-    registrarId: string
+    registrarId: string,
+    periodYears?: number
   ): Promise<DomainRecord | null> {
     const normalizedName = normalizeDomainName(name);
     const domain = this.domains.get(normalizedName);
@@ -118,11 +124,20 @@ export class InMemoryDomainRepository implements DomainRepository {
       return null;
     }
 
+    if (operation === "query") {
+      return domain;
+    }
+
     const now = new Date().toISOString();
     const transferStatus = transferStatusFor(operation, domain.transfer?.status);
+    const transferPeriod = periodYears ?? domain.transfer?.periodYears ?? 1;
+    const expiresAt =
+      transferStatus === "approved" ? addYears(domain.expiresAt, transferPeriod) : domain.expiresAt;
     const updated: DomainRecord = {
       ...domain,
-      registrarId: transferStatus === "approved" ? registrarId : domain.registrarId,
+      registrarId: transferStatus === "approved" ? domain.transfer?.requestedBy ?? registrarId : domain.registrarId,
+      expiresAt,
+      rgpStatus: transferStatus === "approved" ? "transferPeriod" : domain.rgpStatus,
       statuses: normalizeStatuses(
         transferStatus === "pending"
           ? [...domain.statuses, "pendingTransfer"]
@@ -132,13 +147,31 @@ export class InMemoryDomainRepository implements DomainRepository {
         status: transferStatus,
         requestedBy: domain.transfer?.requestedBy ?? registrarId,
         requestedAt: domain.transfer?.requestedAt ?? now,
-        updatedAt: now
+        updatedAt: now,
+        periodYears: transferPeriod
       },
       updatedAt: now
     };
 
     this.domains.set(normalizedName, updated);
     return updated;
+  }
+
+  async replaceHostName(oldName: string, newName: string): Promise<void> {
+    const from = oldName.trim().toLowerCase();
+    const to = newName.trim().toLowerCase();
+
+    for (const domain of this.domains.values()) {
+      if (!domain.nameservers.some((ns) => ns.toLowerCase() === from)) {
+        continue;
+      }
+
+      this.domains.set(domain.name, {
+        ...domain,
+        nameservers: unique(domain.nameservers.map((ns) => (ns.toLowerCase() === from ? to : ns))),
+        updatedAt: new Date().toISOString()
+      });
+    }
   }
 
   async list(): Promise<DomainRecord[]> {
@@ -155,10 +188,18 @@ export class InMemoryDomainRepository implements DomainRepository {
         statuses: normalizeStatuses(record.statuses),
         nameservers: unique(record.nameservers ?? []),
         contacts: record.contacts ?? [],
-        dsRecords: record.dsRecords ?? []
+        dsRecords: record.dsRecords ?? [],
+        creatorId: record.creatorId ?? record.registrarId,
+        roid: record.roid || allocateRoid("D")
       });
     }
   }
+}
+
+function addYears(isoDate: string, years: number): string {
+  const date = new Date(isoDate);
+  date.setFullYear(date.getFullYear() + years);
+  return date.toISOString();
 }
 
 function resolveRgpStatus(current: string | undefined, next: string | null | undefined): string | undefined {
