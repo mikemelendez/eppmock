@@ -48,7 +48,7 @@ export async function buildRdapApp(config: AppConfig, services: RdapServices): P
     let unicodeName: string;
 
     try {
-      const normalized = policy.normalizeDomainName(request.params.name);
+      const normalized = policy.normalizeDomainName(request.params.name, { allowReserved: true });
       canonicalName = normalized.canonicalName;
       unicodeName = normalized.unicodeName;
     } catch {

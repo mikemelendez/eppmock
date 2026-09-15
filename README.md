@@ -58,6 +58,8 @@ The dashboard never connects to public port 700. `src/epp/eppClient.ts` uses `EP
 
 EPP extensions: `secDNS` (RFC 5910), `rgp` (RFC 3915 redemption/restore), and `launch` (RFC 8334 Sunrise/Claims). Login validates `<version>`/`<lang>`/`<svcs>` and all responses echo `clTRID`.
 
+On startup the registry seeds `nic.melendez`, `miguel.melendez`, and `example.melendez` (contacts, dual-stack in-bailiwick glue, DS, `serverDeleteProhibited`). Generate the DNS zone with DNSSEC enabled to sign those delegations.
+
 Domain records support nameservers, registrant contact, admin/tech/billing contacts, `authInfo`, creation/update/expiration timestamps, transfer state, RGP status, and statuses such as:
 
 - `clientTransferProhibited`
@@ -126,7 +128,7 @@ Use **Auto login** so the dashboard sends `login` before your command. That path
 curl http://127.0.0.1:8080/health
 curl http://127.0.0.1:8080/domains
 curl http://127.0.0.1:8080/domains.csv
-curl 'http://127.0.0.1:8080/dns/zone?dnssec=true&keyAction=generate&nsec3Hash=1&nsec3Flags=0&nsec3Iterations=10&nsec3Salt=A1B2C3D4'
+curl 'http://127.0.0.1:8080/dns/zone?dnssec=true&keyAction=generate&nsec3Hash=1&nsec3Flags=0&nsec3Iterations=0&nsec3Salt=-'
 curl http://127.0.0.1:8080/commands
 ```
 

@@ -33,4 +33,6 @@ test("rejects names outside registry policy", () => {
   for (const name of invalidNames) {
     assert.throws(() => policy.normalizeDomainName(name), RegistryPolicyError);
   }
+
+  assert.equal(policy.normalizeDomainName("nic.melendez", { allowReserved: true }).canonicalName, "nic.melendez");
 });

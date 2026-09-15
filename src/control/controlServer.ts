@@ -3,13 +3,16 @@ import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { AppConfig } from "../config.js";
+import type { ContactService } from "../contact/contactService.js";
 import type { DomainRecord } from "../domain/types.js";
 import type { DomainService } from "../domain/domainService.js";
+import type { HostService } from "../host/hostService.js";
 import { allocateRoid } from "../epp/roid.js";
 import type { CommandLogRepository } from "../epp/commandLogRepository.js";
 import { sendEppRequest } from "../epp/eppClient.js";
 import { generateMelendezZone } from "../dns/melendezZone.js";
 import type { DnsZoneOptions } from "../dns/types.js";
+import { ensureDefaultRegistry } from "../registry/defaultRegistry.js";
 import { dashboardHtml } from "./dashboardHtml.js";
 
 const domainFixtureSchema = z.object({
@@ -72,23 +75,24 @@ const eppRequestBodySchema = z.object({
 
 const dnsZoneQuerySchema = z.object({
   download: z.coerce.boolean().default(false),
-  dnssec: z.coerce.boolean().default(false),
+  dnssec: z.coerce.boolean().default(true),
   keyAction: z.enum(["generate", "renew"]).default("generate"),
   nsec3Hash: z.coerce.number().int().min(1).max(255).default(1),
   nsec3Flags: z.coerce.number().int().min(0).max(255).default(0),
-  nsec3Iterations: z.coerce.number().int().min(0).max(2500).default(10),
+  nsec3Iterations: z.coerce.number().int().min(0).max(2500).default(0),
   nsec3Salt: z
     .string()
     .regex(/^[A-Fa-f0-9-]+$/)
-    .default("A1B2C3D4")
+    .default("-")
 });
 
 export async function startControlServer(
   config: AppConfig,
   domains: DomainService,
-  commandLog: CommandLogRepository
+  commandLog: CommandLogRepository,
+  extras?: { hosts?: HostService; contacts?: ContactService }
 ): Promise<void> {
-  const app = await buildControlApp(config, domains, commandLog);
+  const app = await buildControlApp(config, domains, commandLog, extras);
 
   await app.listen({
     host: config.controlHost,
@@ -99,7 +103,8 @@ export async function startControlServer(
 export async function buildControlApp(
   config: AppConfig,
   domains: DomainService,
-  commandLog: CommandLogRepository
+  commandLog: CommandLogRepository,
+  extras?: { hosts?: HostService; contacts?: ContactService }
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: true });
 
@@ -129,9 +134,12 @@ export async function buildControlApp(
 
   app.get("/dns/zone", async (request, reply) => {
     const query = dnsZoneQuerySchema.parse(request.query);
-    const zone = generateMelendezZone(await domains.list(), query satisfies DnsZoneOptions, {
-      keyPath: config.dnssecKeyPath
-    });
+    const zone = generateMelendezZone(
+      await domains.list(),
+      query satisfies DnsZoneOptions,
+      { keyPath: config.dnssecKeyPath },
+      extras?.hosts ? await extras.hosts.list() : []
+    );
     const response = reply.type("text/plain; charset=utf-8");
 
     if (query.download) {
@@ -155,6 +163,9 @@ export async function buildControlApp(
       }))
     );
     commandLog.reset();
+    if (extras?.contacts && extras.hosts) {
+      await ensureDefaultRegistry({ domains, contacts: extras.contacts, hosts: extras.hosts });
+    }
     return { ok: true };
   });
 
@@ -165,6 +176,9 @@ export async function buildControlApp(
 
     await domains.reset([]);
     commandLog.reset();
+    if (extras?.contacts && extras.hosts) {
+      await ensureDefaultRegistry({ domains, contacts: extras.contacts, hosts: extras.hosts });
+    }
     return { ok: true };
   });
 
