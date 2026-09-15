@@ -766,6 +766,8 @@ export function dashboardHtml(): string {
                     <div class="help-content">
                       <ul>
                         <li>contact:check/create/info/update/delete manage RFC 5733 contact objects (postalInfo, voice, fax, email, authInfo).</li>
+                        <li>contact:create 2005 means a field failed policy: id 3–16 (letter/digit first), cc is ISO 3166-1 alpha-2 (US, MX), voice is +cc.number (example +1.7035555555), email is ASCII, and type="int" postalInfo cannot contain accents (use type="loc" for Meléndez).</li>
+                        <li>Create the contact (sh8013) before domain:create. Do not put ns1.&lt;same-domain&gt; on create: that host cannot exist until the domain exists.</li>
                         <li>host:check/create/info/update/delete manage RFC 5732 host objects with IPv4 and IPv6 glue addresses.</li>
                       </ul>
                     </div>
@@ -844,13 +846,7 @@ export function dashboardHtml(): string {
       <domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
         <domain:name>\${escapeHtml(domain)}</domain:name>
         <domain:period unit="y">1</domain:period>
-        <domain:ns>
-          <domain:hostObj>ns1.\${escapeHtml(domain)}</domain:hostObj>
-          <domain:hostObj>ns2.\${escapeHtml(domain)}</domain:hostObj>
-        </domain:ns>
-        <domain:registrant>CONTACT-001</domain:registrant>
-        <domain:contact type="admin">CONTACT-ADMIN</domain:contact>
-        <domain:contact type="tech">CONTACT-TECH</domain:contact>
+        <domain:registrant>sh8013</domain:registrant>
         <domain:authInfo>
           <domain:pw>domain-secret</domain:pw>
         </domain:authInfo>
