@@ -32,6 +32,7 @@ import { SystemCommandHandler } from "./epp/systemCommandHandler.js";
 import { startRdapServer } from "./rdap/rdapServer.js";
 import { RegistryLinks } from "./registry/registryLinks.js";
 import { startWhoisServer } from "./whois/whoisServer.js";
+import { ensureDefaultRegistry } from "./registry/defaultRegistry.js";
 
 const config = loadConfig();
 setRepositoryId(config.repositoryId);
@@ -100,4 +101,8 @@ if (config.eppDashboardPort && config.eppDashboardPort !== config.eppPort) {
 }
 startWhoisServer(config, domainService);
 await startRdapServer(config, { domains: domainService, hosts: hostService, contacts: contactService });
-await startControlServer(config, domainService, commandLog);
+await ensureDefaultRegistry({ domains: domainService, contacts: contactService, hosts: hostService });
+await startControlServer(config, domainService, commandLog, {
+  hosts: hostService,
+  contacts: contactService
+});

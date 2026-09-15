@@ -193,6 +193,10 @@ function rdataToWire(record: ZoneRecord): Buffer {
     return Buffer.from(parts[0].split(".").map((part) => Number(part)));
   }
 
+  if (record.type === "AAAA") {
+    return ipv6ToBuffer(parts[0]);
+  }
+
   if (record.type === "NS") {
     return nameToWire(parts[0]);
   }
@@ -233,6 +237,21 @@ function rdataToWire(record: ZoneRecord): Buffer {
   }
 
   throw new Error(`Unsupported DNSSEC record type: ${record.type}`);
+}
+
+function ipv6ToBuffer(ip: string): Buffer {
+  const [head, tail] = ip.split("::");
+  const headParts = head ? head.split(":").filter(Boolean) : [];
+  const tailParts = tail ? tail.split(":").filter(Boolean) : [];
+  const missing = 8 - headParts.length - tailParts.length;
+  const parts = [...headParts, ...Array.from({ length: missing }, () => "0"), ...tailParts];
+  const buffer = Buffer.alloc(16);
+
+  for (const [index, part] of parts.entries()) {
+    buffer.writeUInt16BE(Number.parseInt(part, 16), index * 2);
+  }
+
+  return buffer;
 }
 
 function dsDigest(owner: string, dnskey: ZoneRecord): string {
@@ -278,6 +297,7 @@ function typeCode(type: string): number {
     A: 1,
     NS: 2,
     SOA: 6,
+    AAAA: 28,
     DS: 43,
     RRSIG: 46,
     NSEC3: 50,

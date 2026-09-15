@@ -563,7 +563,7 @@ export function dashboardHtml(): string {
         </div>
         <div class="card-body">
           <div class="toolbar">
-            <input id="domainName" value="example.melendez" placeholder="example.melendez or café.melendez" />
+            <input id="domainName" value="example.melendez" placeholder="example.melendez or café.melendez" list="defaultDomains" />
             <select id="authUser"></select>
             <select id="template">
               <optgroup label="Domain">
@@ -603,6 +603,11 @@ export function dashboardHtml(): string {
               </optgroup>
             </select>
           </div>
+          <datalist id="defaultDomains">
+            <option value="nic.melendez"></option>
+            <option value="miguel.melendez"></option>
+            <option value="example.melendez"></option>
+          </datalist>
           <textarea id="xml"></textarea>
           <div class="actions">
             <button class="primary" id="send">Send EPP</button>
@@ -680,11 +685,11 @@ export function dashboardHtml(): string {
               </label>
               <label>
                 NSEC3 iterations
-                <input id="nsec3Iterations" type="number" min="0" max="2500" value="10" />
+                <input id="nsec3Iterations" type="number" min="0" max="2500" value="0" />
               </label>
               <label>
                 NSEC3 salt
-                <input id="nsec3Salt" value="A1B2C3D4" />
+                <input id="nsec3Salt" value="-" />
               </label>
             </div>
             <pre id="zoneOutput" class="zone-output">No .melendez zone generated yet</pre>
@@ -713,11 +718,11 @@ export function dashboardHtml(): string {
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-db"/></svg></span><span class="help-title">Registry State and CSV</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-                    <div class="help-content"><p>The Registry State card shows persisted domains and recent EPP commands. Download CSV exports the full domain table for verification, including statuses, nameservers, contacts, authInfo, DS records, dates, and transfer state.</p></div>
+                    <div class="help-content"><p>The Registry State card shows persisted domains and recent EPP commands. Download CSV exports the full domain table for verification, including statuses, nameservers, contacts, authInfo, DS records, dates, and transfer state. The registry always seeds nic.melendez, miguel.melendez, and example.melendez with contacts, dual-stack glue, DS records, and serverDeleteProhibited.</p></div>
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-globe"/></svg></span><span class="help-title">DNS Zone Generator</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-                    <div class="help-content"><p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes NS delegations for every persisted .melendez domain, DS records from secDNS data, glue records for in-bailiwick nameservers, persisted KSK/ZSK DNSKEY material, RRSIG signatures, NSEC3 records, and configurable NSEC3PARAM values.</p></div>
+                    <div class="help-content"><p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes NS delegations for every persisted .melendez domain, DS records from secDNS data, glue records for in-bailiwick nameservers, persisted KSK/ZSK DNSKEY material, RRSIG signatures, NSEC3 records, and configurable NSEC3PARAM values. DNSSEC is on by default (NSEC3 iterations 0, empty salt). Generate after startup to sign nic, miguel, and example.</p></div>
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-search"/></svg></span><span class="help-title">WHOIS</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
@@ -767,7 +772,7 @@ export function dashboardHtml(): string {
                       <ul>
                         <li>contact:check/create/info/update/delete manage RFC 5733 contact objects (postalInfo, voice, fax, email, authInfo).</li>
                         <li>contact:create 2005 means a field failed policy: id 3–16 (letter/digit first), cc is ISO 3166-1 alpha-2 (US, MX), voice is +cc.number (example +1.7035555555), email is ASCII, and type="int" postalInfo cannot contain accents (use type="loc" for Meléndez).</li>
-                        <li>Create the contact (sh8013) before domain:create. Do not put ns1.&lt;same-domain&gt; on create: that host cannot exist until the domain exists.</li>
+                        <li>Create the contact (sh8013) before domain:create. Do not list in-bailiwick nameservers on create; those hosts cannot exist until the domain exists.</li>
                         <li>host:check/create/info/update/delete manage RFC 5732 host objects with IPv4 and IPv6 glue addresses.</li>
                       </ul>
                     </div>
@@ -1347,8 +1352,8 @@ export function dashboardHtml(): string {
       params.set("keyAction", dnssecKeyAction.value);
       params.set("nsec3Hash", nsec3Hash.value || "1");
       params.set("nsec3Flags", nsec3Flags.value || "0");
-      params.set("nsec3Iterations", nsec3Iterations.value || "10");
-      params.set("nsec3Salt", nsec3Salt.value.trim() || "A1B2C3D4");
+      params.set("nsec3Iterations", nsec3Iterations.value || "0");
+      params.set("nsec3Salt", nsec3Salt.value.trim() || "-");
       return params;
     }
 

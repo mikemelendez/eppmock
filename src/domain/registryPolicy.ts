@@ -30,7 +30,7 @@ export class RegistryPolicy {
     this.canonicalTld = canonicalTld;
   }
 
-  normalizeDomainName(name: string): RegistryDomainName {
+  normalizeDomainName(name: string, options?: { allowReserved?: boolean }): RegistryDomainName {
     const input = name;
     const trimmed = name.trim().replace(/\.$/, "").toLowerCase();
 
@@ -71,7 +71,7 @@ export class RegistryPolicy {
       throw new RegistryPolicyError(input, "domain label contains code points outside the IDN table");
     }
 
-    if (isReservedLabel(label)) {
+    if (!options?.allowReserved && isReservedLabel(label)) {
       throw new RegistryPolicyError(input, "domain label is reserved by registry policy");
     }
 

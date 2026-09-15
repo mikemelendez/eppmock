@@ -61,7 +61,7 @@ async function handleQuery(
   }
 
   try {
-    const normalized = policy.normalizeDomainName(query);
+    const normalized = policy.normalizeDomainName(query, { allowReserved: true });
     const domain = await domains.findByName(normalized.canonicalName);
     socket.end(formatWhoisResponse(query, domain, registryTld).response);
   } catch (error) {
