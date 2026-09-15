@@ -8,6 +8,17 @@ import type { DnssecKeyConfig, DnsZoneOptions, ZoneRecord } from "./types.js";
 const origin = "melendez.";
 const ttl = 3600;
 const tldNameservers = ["ns1.melendez.", "ns2.melendez."];
+const tldNameserverGlue: ZoneRecord[] = [
+  { owner: "ns1", type: "A", ttl, rdata: "192.0.2.10" },
+  { owner: "ns1", type: "AAAA", ttl, rdata: "2001:db8:53::1" },
+  { owner: "ns2", type: "A", ttl, rdata: "192.0.2.11" },
+  { owner: "ns2", type: "AAAA", ttl, rdata: "2001:db8:53::2" }
+];
+const defaultDomainApexAddresses: Record<string, { a: string; aaaa: string }> = {
+  "nic.melendez": { a: "192.0.2.80", aaaa: "2001:db8:1::80" },
+  "miguel.melendez": { a: "192.0.2.81", aaaa: "2001:db8:1::81" },
+  "example.melendez": { a: "192.0.2.82", aaaa: "2001:db8:1::82" }
+};
 
 export function generateMelendezZone(
   domains: DomainRecord[],
@@ -38,8 +49,7 @@ export function unsignedZoneRecords(
   return [
     { owner: "@", type: "SOA", ttl, rdata: `${tldNameservers[0]} hostmaster.${origin} ${serial} 3600 900 1209600 3600` },
     ...tldNameservers.map((nameserver) => ({ owner: "@", type: "NS", ttl, rdata: nameserver })),
-    { owner: "ns1", type: "A", ttl, rdata: "192.0.2.10" },
-    { owner: "ns2", type: "A", ttl, rdata: "192.0.2.11" },
+    ...tldNameserverGlue,
     { owner: "; Delegated .melendez domains", type: "COMMENT", ttl, rdata: "" },
     ...(delegations.length ? delegations : [{ owner: "; No registered .melendez domains found", type: "COMMENT", ttl, rdata: "" }])
   ];
@@ -65,7 +75,8 @@ export function domainDelegationRecords(
           ttl,
           rdata: `${record.keyTag} ${record.algorithm} ${record.digestType} ${record.digest.toUpperCase()}`
         }))
-      : [])
+      : []),
+    ...defaultDomainApexRecords(domain, label)
   ];
 
   for (const [nameserverIndex, nameserver] of nameservers.entries()) {
@@ -82,7 +93,9 @@ export function domainDelegationRecords(
         records.push({ owner: glueOwner, type: hostRecord.type, ttl, rdata: hostRecord.rdata });
       }
     } else {
-      records.push({ owner: glueOwner, type: "A", ttl, rdata: `192.0.2.${100 + index * 2 + nameserverIndex}` });
+      const octet = 100 + index * 2 + nameserverIndex;
+      records.push({ owner: glueOwner, type: "A", ttl, rdata: `192.0.2.${octet}` });
+      records.push({ owner: glueOwner, type: "AAAA", ttl, rdata: `2001:db8:1::${octet}` });
     }
   }
 
@@ -107,6 +120,19 @@ function buildHostGlueMap(hosts: HostRecord[]): Map<string, ZoneRecord[]> {
   }
 
   return map;
+}
+
+function defaultDomainApexRecords(domain: DomainRecord, label: string): ZoneRecord[] {
+  const addresses = defaultDomainApexAddresses[domain.name];
+
+  if (!addresses) {
+    return [];
+  }
+
+  return [
+    { owner: label, type: "A", ttl, rdata: addresses.a },
+    { owner: label, type: "AAAA", ttl, rdata: addresses.aaaa }
+  ];
 }
 
 function childDsRecords(domain: DomainRecord, index: number): DomainRecord["dsRecords"] {

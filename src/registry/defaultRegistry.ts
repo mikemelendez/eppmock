@@ -135,16 +135,27 @@ async function ensureContact(contacts: ContactService, spec: DefaultDomainSpec):
 }
 
 async function ensureHost(hosts: HostService, name: string, octet: number): Promise<void> {
-  if (await hosts.findByName(name)) {
+  const expected = [
+    { ip: `192.0.2.${octet}`, version: "v4" as const },
+    { ip: `2001:db8:1::${octet}`, version: "v6" as const }
+  ];
+  const existing = await hosts.findByName(name);
+
+  if (!existing) {
+    await hosts.create({
+      name,
+      registrarId: REGISTRAR,
+      addresses: expected
+    });
     return;
   }
 
-  await hosts.create({
-    name,
-    registrarId: REGISTRAR,
-    addresses: [
-      { ip: `192.0.2.${octet}`, version: "v4" },
-      { ip: `2001:db8:1::${octet}`, version: "v6" }
-    ]
-  });
+  const addressesToAdd = expected.filter(
+    (address) =>
+      !existing.addresses.some((current) => current.ip === address.ip && current.version === address.version)
+  );
+
+  if (addressesToAdd.length) {
+    await hosts.update(name, REGISTRAR, { addressesToAdd });
+  }
 }

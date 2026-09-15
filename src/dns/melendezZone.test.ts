@@ -53,7 +53,12 @@ test("generates a signed .melendez zone with child DS and denial records", () =>
     assert.match(zone, /signed IN DS 12345 13 2 0123456789ABCDEF/);
     assert.match(zone, / IN NSEC3 1 0 10 A1B2C3D4 /);
     assert.match(zone, / IN RRSIG NSEC3 13 /);
+    assert.match(zone, /ns1 IN A 192\.0\.2\.10/);
+    assert.match(zone, /ns1 IN AAAA 2001:db8:53::1/);
+    assert.match(zone, /ns2 IN A 192\.0\.2\.11/);
+    assert.match(zone, /ns2 IN AAAA 2001:db8:53::2/);
     assert.match(zone, /ns1\.signed IN A 192\.0\.2\.100/);
+    assert.match(zone, /ns1\.signed IN AAAA 2001:db8:1::100/);
 
     const keyFile = JSON.parse(readFileSync(keyPath, "utf8")) as { ksk?: unknown; zsk?: unknown };
     assert.ok(keyFile.ksk);
