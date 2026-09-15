@@ -78,6 +78,22 @@ test("contact create twice returns object exists", async () => {
   assert.match(second, /<result code="2302">/);
 });
 
+test("contact create policy errors include the failing field", async () => {
+  const withVoice = createXml.replace(
+    "</contact:postalInfo>",
+    `</contact:postalInfo>\n        <contact:voice>+1 703 555 5555</contact:voice>`
+  );
+  const accentInt = createXml.replace("John Doe", "Mike Meléndez");
+
+  const voice = await handler().handle(parseEppXml(withVoice), context());
+  assert.match(voice, /<result code="2005">/);
+  assert.match(voice, /<reason>Contact voice is invalid<\/reason>/);
+
+  const name = await handler().handle(parseEppXml(accentInt), context());
+  assert.match(name, /<result code="2005">/);
+  assert.match(name, /int postalInfo must contain ASCII characters only/);
+});
+
 test("contact info for unknown id returns object does not exist", async () => {
   const infoXml = `<?xml version="1.0" encoding="UTF-8"?>
 <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">

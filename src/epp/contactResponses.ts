@@ -122,16 +122,20 @@ export function contactAssociationProhibitsOperation(transactionId?: string): st
   return contactErrorResponse(2305, "Object association prohibits operation", transactionId);
 }
 
-export function contactParameterPolicyError(transactionId?: string): string {
-  return contactErrorResponse(2005, "Parameter value policy error", transactionId);
+export function contactParameterPolicyError(transactionId?: string, reason?: string): string {
+  return contactErrorResponse(2005, "Parameter value policy error", transactionId, reason);
 }
 
-function contactErrorResponse(code: number, message: string, transactionId?: string): string {
+function contactErrorResponse(code: number, message: string, transactionId?: string, reason?: string): string {
   return buildEppXml({
     epp: {
       ...eppAttributes,
       response: {
-        result: { "@_code": code, msg: message },
+        result: {
+          "@_code": code,
+          msg: message,
+          ...(reason ? { extValue: { value: "", reason } } : {})
+        },
         trID: { clTRID: transactionId, svTRID: randomUUID() }
       }
     }

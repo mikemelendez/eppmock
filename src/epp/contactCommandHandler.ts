@@ -77,8 +77,9 @@ export class ContactCommandHandler implements CommandHandler {
 
     try {
       postalInfo = parsePostalInfo(childValue(contactCreate, "postalInfo"));
-    } catch {
-      return contactParameterPolicyError(context.transactionId);
+    } catch (error) {
+      const reason = error instanceof ContactValidationError ? error.message : "postalInfo is invalid";
+      return contactParameterPolicyError(context.transactionId, reason);
     }
 
     if (!id || !email || !context.session.clid) {
@@ -105,7 +106,7 @@ export class ContactCommandHandler implements CommandHandler {
       }
 
       if (error instanceof ContactValidationError) {
-        return contactParameterPolicyError(context.transactionId);
+        return contactParameterPolicyError(context.transactionId, error.message);
       }
 
       throw error;
@@ -152,8 +153,9 @@ export class ContactCommandHandler implements CommandHandler {
 
     try {
       postalInfo = change ? parsePostalInfo(childValue(change, "postalInfo"), true) : undefined;
-    } catch {
-      return contactParameterPolicyError(context.transactionId);
+    } catch (error) {
+      const reason = error instanceof ContactValidationError ? error.message : "postalInfo is invalid";
+      return contactParameterPolicyError(context.transactionId, reason);
     }
 
     try {
@@ -180,7 +182,7 @@ export class ContactCommandHandler implements CommandHandler {
       }
 
       if (error instanceof ContactValidationError) {
-        return contactParameterPolicyError(context.transactionId);
+        return contactParameterPolicyError(context.transactionId, error.message);
       }
 
       throw error;
