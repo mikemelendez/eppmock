@@ -3,11 +3,16 @@ import type { DomainRecord } from "../domain/types.js";
 import type { HostRecord } from "../host/types.js";
 import { DnssecKeyStore } from "./dnssecKeyStore.js";
 import { signZoneRecords } from "./dnssecSigner.js";
+import { TLD_NAMESERVER_ADDRESSES } from "./tldNameservers.js";
 import type { DnssecKeyConfig, DnsZoneOptions, ZoneRecord } from "./types.js";
 
 const origin = "melendez.";
 const ttl = 3600;
 const tldNameservers = ["ns1.melendez.", "ns2.melendez."];
+const tldNameserverGlue: ZoneRecord[] = TLD_NAMESERVER_ADDRESSES.flatMap((nameserver) => [
+  { owner: nameserver.owner, type: "A", ttl, rdata: nameserver.a },
+  { owner: nameserver.owner, type: "AAAA", ttl, rdata: nameserver.aaaa }
+]);
 
 export function generateMelendezZone(
   domains: DomainRecord[],
@@ -38,8 +43,7 @@ export function unsignedZoneRecords(
   return [
     { owner: "@", type: "SOA", ttl, rdata: `${tldNameservers[0]} hostmaster.${origin} ${serial} 3600 900 1209600 3600` },
     ...tldNameservers.map((nameserver) => ({ owner: "@", type: "NS", ttl, rdata: nameserver })),
-    { owner: "ns1", type: "A", ttl, rdata: "192.0.2.10" },
-    { owner: "ns2", type: "A", ttl, rdata: "192.0.2.11" },
+    ...tldNameserverGlue,
     { owner: "; Delegated .melendez domains", type: "COMMENT", ttl, rdata: "" },
     ...(delegations.length ? delegations : [{ owner: "; No registered .melendez domains found", type: "COMMENT", ttl, rdata: "" }])
   ];
@@ -82,7 +86,9 @@ export function domainDelegationRecords(
         records.push({ owner: glueOwner, type: hostRecord.type, ttl, rdata: hostRecord.rdata });
       }
     } else {
-      records.push({ owner: glueOwner, type: "A", ttl, rdata: `192.0.2.${100 + index * 2 + nameserverIndex}` });
+      const octet = 100 + index * 2 + nameserverIndex;
+      records.push({ owner: glueOwner, type: "A", ttl, rdata: `192.0.2.${octet}` });
+      records.push({ owner: glueOwner, type: "AAAA", ttl, rdata: `2001:db8:1::${octet}` });
     }
   }
 

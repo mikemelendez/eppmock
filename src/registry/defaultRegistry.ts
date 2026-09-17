@@ -3,7 +3,9 @@ import type { ContactService } from "../contact/contactService.js";
 import type { ContactPostalInfo } from "../contact/types.js";
 import type { DomainService } from "../domain/domainService.js";
 import type { DomainDsRecord } from "../domain/types.js";
+import type { HostAddress } from "../host/types.js";
 import type { HostService } from "../host/hostService.js";
+import { TLD_NAMESERVER_ADDRESSES } from "../dns/tldNameservers.js";
 
 export const DEFAULT_REGISTRY_DOMAIN_NAMES = ["nic.melendez", "miguel.melendez", "example.melendez"] as const;
 
@@ -15,7 +17,6 @@ interface DefaultDomainSpec {
   postalInfo: ContactPostalInfo[];
   email: string;
   voice: string;
-  glueBase: number;
 }
 
 const DEFAULT_DOMAINS: DefaultDomainSpec[] = [
@@ -26,8 +27,7 @@ const DEFAULT_DOMAINS: DefaultDomainSpec[] = [
       postal("int", "Registry Operator", "Monterrey", "NL", "64000", "MX", ["Av. Constitucion 100"])
     ],
     email: "hostmaster@nic.melendez",
-    voice: "+52.8180000001",
-    glueBase: 20
+    voice: "+52.8180000001"
   },
   {
     name: "miguel.melendez",
@@ -36,16 +36,14 @@ const DEFAULT_DOMAINS: DefaultDomainSpec[] = [
       postal("loc", "Miguel Meléndez", "Monterrey", "NL", "64000", "MX", ["Av. Fundidora 1"])
     ],
     email: "miguel@example.net",
-    voice: "+52.8180000002",
-    glueBase: 30
+    voice: "+52.8180000002"
   },
   {
     name: "example.melendez",
     contactId: "EXA-001",
     postalInfo: [postal("int", "Example User", "Dulles", "VA", "20166", "US", ["123 Example Dr."])],
     email: "jdoe@example.net",
-    voice: "+1.7035555555",
-    glueBase: 40
+    voice: "+1.7035555555"
   }
 ];
 
@@ -74,8 +72,8 @@ export async function ensureDefaultRegistry(services: DefaultRegistryServices): 
 
     const ns1 = `ns1.${spec.name}`;
     const ns2 = `ns2.${spec.name}`;
-    await ensureHost(services.hosts, ns1, spec.glueBase);
-    await ensureHost(services.hosts, ns2, spec.glueBase + 1);
+    await ensureHost(services.hosts, ns1, "ns1");
+    await ensureHost(services.hosts, ns2, "ns2");
 
     const domain = await services.domains.findByName(spec.name);
 
@@ -134,17 +132,37 @@ async function ensureContact(contacts: ContactService, spec: DefaultDomainSpec):
   });
 }
 
-async function ensureHost(hosts: HostService, name: string, octet: number): Promise<void> {
-  if (await hosts.findByName(name)) {
+async function ensureHost(hosts: HostService, name: string, role: "ns1" | "ns2"): Promise<void> {
+  const nameserver = TLD_NAMESERVER_ADDRESSES.find((entry) => entry.owner === role);
+
+  if (!nameserver) {
+    throw new Error(`Missing TLD nameserver addresses for ${role}`);
+  }
+
+  const expected: HostAddress[] = [
+    { ip: nameserver.a, version: "v4" },
+    { ip: nameserver.aaaa, version: "v6" }
+  ];
+  const existing = await hosts.findByName(name);
+
+  if (!existing) {
+    await hosts.create({
+      name,
+      registrarId: REGISTRAR,
+      addresses: expected
+    });
     return;
   }
 
-  await hosts.create({
-    name,
-    registrarId: REGISTRAR,
-    addresses: [
-      { ip: `192.0.2.${octet}`, version: "v4" },
-      { ip: `2001:db8:1::${octet}`, version: "v6" }
-    ]
-  });
+  const addressesToAdd = expected.filter(
+    (address) =>
+      !existing.addresses.some((current) => current.ip === address.ip && current.version === address.version)
+  );
+  const addressesToRemove = existing.addresses.filter(
+    (address) => !expected.some((wanted) => wanted.ip === address.ip && wanted.version === address.version)
+  );
+
+  if (addressesToAdd.length || addressesToRemove.length) {
+    await hosts.update(name, REGISTRAR, { addressesToAdd, addressesToRemove });
+  }
 }
