@@ -41,7 +41,7 @@ export function unsignedZoneRecords(
     .flatMap((domain, index) => domainDelegationRecords(domain, index, includeDelegationDs, hostGlue));
 
   return [
-    { owner: "@", type: "SOA", ttl, rdata: `${tldNameservers[0]} hostmaster.nic.${origin} ${serial} 3600 900 1209600 3600` },
+    { owner: "@", type: "SOA", ttl, rdata: `${tldNameservers[0]} hostmaster.ns1.${origin} ${serial} 3600 900 1209600 3600` },
     ...tldNameservers.map((nameserver) => ({ owner: "@", type: "NS", ttl, rdata: nameserver })),
     ...tldNameserverGlue,
     { owner: "; Delegated .melendez domains", type: "COMMENT", ttl, rdata: "" },
