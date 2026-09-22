@@ -71,7 +71,7 @@ test("seeds nic, miguel, and example with glue, DS, and a signed zone", async ()
       await services.hosts.list()
     );
 
-    assert.match(zone, /@ IN SOA ns1\.melendez\. hostmaster\.nic\.melendez\. \(/);
+    assert.match(zone, /@ IN SOA ns1\.melendez\. hostmaster\.ns1\.melendez\. \(/);
     assert.match(zone, /ns1 IN A 52\.200\.129\.52/);
     assert.match(zone, /ns1 IN AAAA 2600:1f18:79c4:5a00:91f7:3bf2:f396:c7c9/);
     assert.match(zone, /ns2 IN A 67\.217\.246\.69/);
