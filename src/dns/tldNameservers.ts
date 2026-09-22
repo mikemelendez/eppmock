@@ -12,7 +12,7 @@ export const TLD_NAMESERVER_ADDRESSES: readonly NameserverAddresses[] = [
   },
   {
     owner: "ns2",
-    a: "44.207.35.249",
-    aaaa: "2600:1f18:79c4:5a01:fca2:4974:cd49:7994"
+    a: "67.217.246.69",
+    aaaa: "2607:f1c0:f07e:9100::1"
   }
 ];
