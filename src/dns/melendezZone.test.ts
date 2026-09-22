@@ -53,10 +53,11 @@ test("generates a signed .melendez zone with child DS and denial records", () =>
     assert.match(zone, /signed IN DS 12345 13 2 0123456789ABCDEF/);
     assert.match(zone, / IN NSEC3 1 0 10 A1B2C3D4 /);
     assert.match(zone, / IN RRSIG NSEC3 13 /);
+    assert.match(zone, /@ IN SOA ns1\.melendez\. hostmaster\.nic\.melendez\. \(/);
     assert.match(zone, /ns1 IN A 52\.200\.129\.52/);
     assert.match(zone, /ns1 IN AAAA 2600:1f18:79c4:5a00:91f7:3bf2:f396:c7c9/);
-    assert.match(zone, /ns2 IN A 44\.207\.35\.249/);
-    assert.match(zone, /ns2 IN AAAA 2600:1f18:79c4:5a01:fca2:4974:cd49:7994/);
+    assert.match(zone, /ns2 IN A 67\.217\.246\.69/);
+    assert.match(zone, /ns2 IN AAAA 2607:f1c0:f07e:9100::1/);
     assert.match(zone, /ns1\.signed IN A 192\.0\.2\.100/);
     assert.match(zone, /ns1\.signed IN AAAA 2001:db8:1::100/);
 

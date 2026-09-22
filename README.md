@@ -58,7 +58,14 @@ The dashboard never connects to public port 700. `src/epp/eppClient.ts` uses `EP
 
 EPP extensions: `secDNS` (RFC 5910), `rgp` (RFC 3915 redemption/restore), and `launch` (RFC 8334 Sunrise/Claims). Login validates `<version>`/`<lang>`/`<svcs>` and all responses echo `clTRID`.
 
-On startup the registry seeds `nic.melendez`, `miguel.melendez`, and `example.melendez` (contacts, dual-stack in-bailiwick glue, DS, `serverDeleteProhibited`). The TLD nameservers `ns1.melendez` / `ns2.melendez` publish A and AAAA glue. Generate the DNS zone with DNSSEC enabled to sign those records.
+On startup the registry seeds `nic.melendez`, `miguel.melendez`, and `example.melendez` (contacts, dual-stack in-bailiwick glue, DS, `serverDeleteProhibited`). The TLD nameservers are:
+
+| Nameserver | IPv4 | IPv6 |
+| --- | --- | --- |
+| `ns1.melendez` | `52.200.129.52` | `2600:1f18:79c4:5a00:91f7:3bf2:f396:c7c9` |
+| `ns2.melendez` | `67.217.246.69` | `2607:f1c0:f07e:9100::1` |
+
+The zone SOA uses `ns1.melendez.` / `hostmaster.nic.melendez.`, and DNSSEC defaults to NSEC3 `1 0 0 -`. Generate the DNS zone with DNSSEC enabled to sign those records.
 
 Domain records support nameservers, registrant contact, admin/tech/billing contacts, `authInfo`, creation/update/expiration timestamps, transfer state, RGP status, and statuses such as:
 

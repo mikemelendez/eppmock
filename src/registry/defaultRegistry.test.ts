@@ -51,7 +51,7 @@ test("seeds nic, miguel, and example with glue, DS, and a signed zone", async ()
     );
     assert.deepEqual(
       ns2?.addresses.map((address) => address.ip).sort(),
-      ["44.207.35.249", "2600:1f18:79c4:5a01:fca2:4974:cd49:7994"].sort()
+      ["67.217.246.69", "2607:f1c0:f07e:9100::1"].sort()
     );
   }
 
@@ -71,19 +71,20 @@ test("seeds nic, miguel, and example with glue, DS, and a signed zone", async ()
       await services.hosts.list()
     );
 
+    assert.match(zone, /@ IN SOA ns1\.melendez\. hostmaster\.nic\.melendez\. \(/);
     assert.match(zone, /ns1 IN A 52\.200\.129\.52/);
     assert.match(zone, /ns1 IN AAAA 2600:1f18:79c4:5a00:91f7:3bf2:f396:c7c9/);
-    assert.match(zone, /ns2 IN A 44\.207\.35\.249/);
-    assert.match(zone, /ns2 IN AAAA 2600:1f18:79c4:5a01:fca2:4974:cd49:7994/);
+    assert.match(zone, /ns2 IN A 67\.217\.246\.69/);
+    assert.match(zone, /ns2 IN AAAA 2607:f1c0:f07e:9100::1/);
     assert.match(zone, /nic IN NS ns1\.nic\.melendez\./);
     assert.match(zone, /miguel IN NS ns1\.miguel\.melendez\./);
     assert.match(zone, /example IN NS ns1\.example\.melendez\./);
     assert.match(zone, /ns1\.nic IN A 52\.200\.129\.52/);
     assert.match(zone, /ns1\.nic IN AAAA 2600:1f18:79c4:5a00:91f7:3bf2:f396:c7c9/);
-    assert.match(zone, /ns2\.nic IN A 44\.207\.35\.249/);
-    assert.match(zone, /ns2\.nic IN AAAA 2600:1f18:79c4:5a01:fca2:4974:cd49:7994/);
+    assert.match(zone, /ns2\.nic IN A 67\.217\.246\.69/);
+    assert.match(zone, /ns2\.nic IN AAAA 2607:f1c0:f07e:9100::1/);
     assert.match(zone, /ns1\.miguel IN AAAA 2600:1f18:79c4:5a00:91f7:3bf2:f396:c7c9/);
-    assert.match(zone, /ns1\.example IN AAAA 2600:1f18:79c4:5a00:91f7:3bf2:f396:c7c9/);
+    assert.match(zone, /ns2\.example IN AAAA 2607:f1c0:f07e:9100::1/);
     assert.match(zone, /nic IN DS \d+ 13 2 [A-F0-9]{64}/);
     assert.match(zone, /@ IN DNSKEY 257 3 13 /);
     assert.match(zone, /@ IN NSEC3PARAM 1 0 0 -/);
