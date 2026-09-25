@@ -85,6 +85,7 @@ test("epp-01/03 TLS 1.2 greeting and client-certificate login binding", async (t
     assert.match(loginOk.frames[1] ?? "", /<result code="1000">/);
     assert.match(loginOk.cipherName, /GCM|CHACHA|AES/);
 
+    // Other registrar's allowlisted cert: TLS accepted, login bound to wrong clid → 2200
     const wrongCert = await tlsExchange(
       port,
       { ca: readFileSync(caCert), key: readFileSync(client2Key), cert: readFileSync(client2Cert) },
@@ -92,12 +93,26 @@ test("epp-01/03 TLS 1.2 greeting and client-certificate login binding", async (t
     );
     assert.match(wrongCert.frames[1] ?? "", /<result code="2200">/);
 
-    const missingCert = await tlsExchange(
-      port,
-      { ca: readFileSync(caCert) },
-      loginXml("melendez-registrar", "registrar-secret")
+    // Missing / "strange" (not allowlisted) certs: connection destroyed, no greeting
+    await assert.rejects(
+      () => tlsExchange(port, { ca: readFileSync(caCert) }, loginXml("melendez-registrar", "registrar-secret")),
+      /EPP connection (closed|reset) without a greeting|ECONNRESET|socket hang up/i
     );
-    assert.match(missingCert.frames[1] ?? "", /<result code="2200">/);
+
+    const client3Key = join(dir, "client3.key");
+    const client3Cert = join(dir, "client3.pem");
+    execFileSync("openssl", ["req", "-newkey", "rsa:2048", "-nodes", "-keyout", client3Key, "-out", join(dir, "c3.csr"), "-subj", "/CN=strange-client"]);
+    execFileSync("openssl", ["x509", "-req", "-in", join(dir, "c3.csr"), "-CA", caCert, "-CAkey", caKey, "-CAcreateserial", "-out", client3Cert, "-days", "1"]);
+
+    await assert.rejects(
+      () =>
+        tlsExchange(
+          port,
+          { ca: readFileSync(caCert), key: readFileSync(client3Key), cert: readFileSync(client3Cert) },
+          loginXml("melendez-registrar", "registrar-secret")
+        ),
+      /EPP connection (closed|reset) without a greeting|ECONNRESET|socket hang up/i
+    );
 
     await assert.rejects(
       () =>
@@ -166,6 +181,13 @@ function tlsExchange(
         clearTimeout(timeout);
         socket.end();
         resolve({ frames, cipherName });
+      }
+    });
+
+    socket.on("close", () => {
+      if (frames.length === 0) {
+        clearTimeout(timeout);
+        reject(new Error("EPP connection closed without a greeting"));
       }
     });
 
