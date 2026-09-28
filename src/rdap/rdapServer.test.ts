@@ -27,6 +27,7 @@ function testConfig(): AppConfig {
     storageMode: "memory",
     sqlitePath: ":memory:",
     dnssecKeyPath: ":memory:",
+    tldNameserverPath: ":memory:",
     repositoryId: "ICANNRST",
     eppTlsRequireClientCert: false
   };

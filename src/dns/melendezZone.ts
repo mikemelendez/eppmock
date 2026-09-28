@@ -3,24 +3,25 @@ import type { DomainRecord } from "../domain/types.js";
 import type { HostRecord } from "../host/types.js";
 import { DnssecKeyStore } from "./dnssecKeyStore.js";
 import { signZoneRecords } from "./dnssecSigner.js";
-import { TLD_NAMESERVER_ADDRESSES } from "./tldNameservers.js";
+import {
+  DEFAULT_TLD_NAMESERVER_CONFIG,
+  resolveTldNameserverAddresses,
+  type TldNameserverConfig
+} from "./tldNameservers.js";
 import type { DnssecKeyConfig, DnsZoneOptions, ZoneRecord } from "./types.js";
 
 const origin = "melendez.";
 const ttl = 3600;
 const tldNameservers = ["ns1.melendez.", "ns2.melendez."];
-const tldNameserverGlue: ZoneRecord[] = TLD_NAMESERVER_ADDRESSES.flatMap((nameserver) => [
-  { owner: nameserver.owner, type: "A", ttl, rdata: nameserver.a },
-  { owner: nameserver.owner, type: "AAAA", ttl, rdata: nameserver.aaaa }
-]);
 
 export function generateMelendezZone(
   domains: DomainRecord[],
   options: DnsZoneOptions,
   keyConfig: DnssecKeyConfig,
-  hosts: HostRecord[] = []
+  hosts: HostRecord[] = [],
+  nameserverConfig: TldNameserverConfig = DEFAULT_TLD_NAMESERVER_CONFIG
 ): string {
-  const records = unsignedZoneRecords(domains, options.dnssec, hosts);
+  const records = unsignedZoneRecords(domains, options.dnssec, hosts, nameserverConfig);
   const outputRecords = options.dnssec
     ? signZoneRecords(records, options, new DnssecKeyStore(keyConfig.keyPath).loadOrCreate(options.keyAction)).records
     : records;
@@ -31,7 +32,8 @@ export function generateMelendezZone(
 export function unsignedZoneRecords(
   domains: DomainRecord[],
   includeDelegationDs = false,
-  hosts: HostRecord[] = []
+  hosts: HostRecord[] = [],
+  nameserverConfig: TldNameserverConfig = DEFAULT_TLD_NAMESERVER_CONFIG
 ): ZoneRecord[] {
   const serial = zoneSerial();
   const hostGlue = buildHostGlueMap(hosts);
@@ -39,9 +41,18 @@ export function unsignedZoneRecords(
     .filter((domain) => domain.name.endsWith(".melendez"))
     .sort((a, b) => a.name.localeCompare(b.name))
     .flatMap((domain, index) => domainDelegationRecords(domain, index, includeDelegationDs, hostGlue));
+  const tldNameserverGlue: ZoneRecord[] = resolveTldNameserverAddresses(nameserverConfig).flatMap((nameserver) => [
+    { owner: nameserver.owner, type: "A", ttl, rdata: nameserver.a },
+    { owner: nameserver.owner, type: "AAAA", ttl, rdata: nameserver.aaaa }
+  ]);
 
   return [
-    { owner: "@", type: "SOA", ttl, rdata: `${tldNameservers[0]} hostmaster.ns1.${origin} ${serial} 3600 900 1209600 3600` },
+    {
+      owner: "@",
+      type: "SOA",
+      ttl,
+      rdata: `${nameserverConfig.soaMname} ${nameserverConfig.soaRname} ${serial} 3600 900 1209600 3600`
+    },
     ...tldNameservers.map((nameserver) => ({ owner: "@", type: "NS", ttl, rdata: nameserver })),
     ...tldNameserverGlue,
     { owner: "; Delegated .melendez domains", type: "COMMENT", ttl, rdata: "" },
@@ -177,10 +188,12 @@ function inBailiwickOwner(nameserver: string): string | null {
   return normalized.replace(/\.melendez\.$/, "");
 }
 
+/** YYYYMMDDHH (UTC) — bumps when nameservers move later the same day. */
 function zoneSerial(): string {
   const now = new Date();
   const year = now.getUTCFullYear();
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
   const day = String(now.getUTCDate()).padStart(2, "0");
-  return `${year}${month}${day}01`;
+  const hour = String(now.getUTCHours()).padStart(2, "0");
+  return `${year}${month}${day}${hour}`;
 }
