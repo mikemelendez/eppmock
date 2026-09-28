@@ -775,7 +775,7 @@ export function dashboardHtml(): string {
           </div>
         </div>
 
-<div class="card">
+        <div class="card">
           <div class="card-head">
             <div>
               <h2>Registry State</h2>
@@ -794,7 +794,7 @@ export function dashboardHtml(): string {
           </div>
         </div>
 
-<div class="card">
+        <div class="card">
           <div class="card-head">
             <div>
               <h2>TLD nameservers</h2>
