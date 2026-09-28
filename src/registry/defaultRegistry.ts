@@ -5,7 +5,11 @@ import type { DomainService } from "../domain/domainService.js";
 import type { DomainDsRecord } from "../domain/types.js";
 import type { HostAddress } from "../host/types.js";
 import type { HostService } from "../host/hostService.js";
-import { TLD_NAMESERVER_ADDRESSES } from "../dns/tldNameservers.js";
+import {
+  DEFAULT_TLD_NAMESERVER_CONFIG,
+  resolveTldNameserverAddresses,
+  type TldNameserverConfig
+} from "../dns/tldNameservers.js";
 
 export const DEFAULT_REGISTRY_DOMAIN_NAMES = ["nic.melendez", "miguel.melendez", "example.melendez"] as const;
 
@@ -51,10 +55,14 @@ export interface DefaultRegistryServices {
   domains: DomainService;
   contacts: ContactService;
   hosts: HostService;
+  /** Dual-stack glue used for seeded in-bailiwick ns1/ns2 hosts. */
+  nameserverConfig?: TldNameserverConfig;
 }
 
 /** Create nic / miguel / example with contacts, in-bailiwick glue, and DS if missing. */
 export async function ensureDefaultRegistry(services: DefaultRegistryServices): Promise<void> {
+  const nameserverConfig = services.nameserverConfig ?? DEFAULT_TLD_NAMESERVER_CONFIG;
+
   for (const spec of DEFAULT_DOMAINS) {
     await ensureContact(services.contacts, spec);
     await services.domains.ensureRegistered({
@@ -72,8 +80,8 @@ export async function ensureDefaultRegistry(services: DefaultRegistryServices): 
 
     const ns1 = `ns1.${spec.name}`;
     const ns2 = `ns2.${spec.name}`;
-    await ensureHost(services.hosts, ns1, "ns1");
-    await ensureHost(services.hosts, ns2, "ns2");
+    await ensureHost(services.hosts, ns1, "ns1", nameserverConfig);
+    await ensureHost(services.hosts, ns2, "ns2", nameserverConfig);
 
     const domain = await services.domains.findByName(spec.name);
 
@@ -132,8 +140,13 @@ async function ensureContact(contacts: ContactService, spec: DefaultDomainSpec):
   });
 }
 
-async function ensureHost(hosts: HostService, name: string, role: "ns1" | "ns2"): Promise<void> {
-  const nameserver = TLD_NAMESERVER_ADDRESSES.find((entry) => entry.owner === role);
+async function ensureHost(
+  hosts: HostService,
+  name: string,
+  role: "ns1" | "ns2",
+  nameserverConfig: TldNameserverConfig
+): Promise<void> {
+  const nameserver = resolveTldNameserverAddresses(nameserverConfig).find((entry) => entry.owner === role);
 
   if (!nameserver) {
     throw new Error(`Missing TLD nameserver addresses for ${role}`);

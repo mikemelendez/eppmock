@@ -35,6 +35,7 @@ services:
       STORAGE_MODE: sqlite
       SQLITE_PATH: /app/data/epp-testing-tool.sqlite
       DNSSEC_KEY_PATH: /app/data/dnssec-keys.json
+      TLD_NAMESERVER_PATH: /app/data/tld-nameservers.json
       GREETING_SERVER_ID: epp-testing-tool
       EPP_HOSTNAME: ${EPP_HOSTNAME:-eppmock.melendez.mx}
       EPP_TLS_CERT: /app/certs/fullchain.pem

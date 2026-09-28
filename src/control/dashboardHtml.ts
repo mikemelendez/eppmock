@@ -655,6 +655,48 @@ export function dashboardHtml(): string {
         <div class="card">
           <div class="card-head">
             <div>
+              <h2>TLD nameservers</h2>
+              <p class="muted">Glue for ns1/ns2.melendez and SOA mailbox. Save, then Generate the zone to deploy.</p>
+            </div>
+            <div class="actions" style="margin-top: 0">
+              <button id="reloadNameservers" type="button">Reload</button>
+              <button id="saveNameservers" type="button">Save</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="dnssec-grid">
+              <label>
+                ns1 IPv4 (A)
+                <input id="ns1A" autocomplete="off" placeholder="52.200.129.52" />
+              </label>
+              <label>
+                ns1 IPv6 (AAAA)
+                <input id="ns1AAAA" autocomplete="off" placeholder="2600:1f18:…:c7c9" />
+              </label>
+              <label>
+                ns2 IPv4 (A)
+                <input id="ns2A" autocomplete="off" placeholder="67.217.246.69" />
+              </label>
+              <label>
+                ns2 IPv6 (AAAA)
+                <input id="ns2AAAA" autocomplete="off" placeholder="2607:f1c0:…::1" />
+              </label>
+              <label>
+                SOA MNAME
+                <input id="soaMname" autocomplete="off" placeholder="ns1.melendez." />
+              </label>
+              <label>
+                SOA RNAME
+                <input id="soaRname" autocomplete="off" placeholder="hostmaster.ns1.melendez." />
+              </label>
+            </div>
+            <p id="nameserverStatus" class="muted" style="margin: 0">Load current glue from the server.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
               <h2>DNS Zone</h2>
               <p class="muted">Generate a BIND-style signed zone file for the entire .melendez TLD.</p>
             </div>
@@ -723,6 +765,10 @@ export function dashboardHtml(): string {
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-globe"/></svg></span><span class="help-title">DNS Zone Generator</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
                     <div class="help-content"><p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes dual-stack TLD nameserver glue (ns1/ns2 A and AAAA), NS delegations for every persisted .melendez domain, DS records from secDNS data, glue records for in-bailiwick nameservers, persisted KSK/ZSK DNSKEY material, RRSIG signatures, NSEC3 records, and configurable NSEC3PARAM values. DNSSEC is on by default (NSEC3 iterations 0, empty salt). Generate after startup to sign nic, miguel, and example.</p></div>
+                  </details>
+                  <details class="help-item">
+                    <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-globe"/></svg></span><span class="help-title">Move TLD nameservers</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+                    <div class="help-content"><p>Use the TLD nameservers card to change ns1/ns2 glue (A/AAAA) and SOA MNAME/RNAME when you relocate authoritative servers. Save asks for the same HTTP Basic credentials as Reset. That writes <code>data/tld-nameservers.json</code>, updates seeded host glue, then Generate/Download the zone and load it on the authoritative DNS. Apex NS hostnames stay ns1.melendez / ns2.melendez.</p></div>
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-search"/></svg></span><span class="help-title">WHOIS</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
@@ -805,6 +851,13 @@ export function dashboardHtml(): string {
     const zoneOutput = $("zoneOutput");
     const dnssecEnabled = $("dnssecEnabled");
     const dnssecKeyAction = $("dnssecKeyAction");
+    const nameserverStatus = $("nameserverStatus");
+    const ns1A = $("ns1A");
+    const ns1AAAA = $("ns1AAAA");
+    const ns2A = $("ns2A");
+    const ns2AAAA = $("ns2AAAA");
+    const soaMname = $("soaMname");
+    const soaRname = $("soaRname");
     const nsec3Hash = $("nsec3Hash");
     const nsec3Flags = $("nsec3Flags");
     const nsec3Iterations = $("nsec3Iterations");
@@ -1340,6 +1393,62 @@ export function dashboardHtml(): string {
       zoneOutput.textContent = await response.text();
     }
 
+    function fillNameserverForm(config) {
+      ns1A.value = config.ns1?.a || "";
+      ns1AAAA.value = config.ns1?.aaaa || "";
+      ns2A.value = config.ns2?.a || "";
+      ns2AAAA.value = config.ns2?.aaaa || "";
+      soaMname.value = config.soaMname || "";
+      soaRname.value = config.soaRname || "";
+      nameserverStatus.textContent = config.updatedAt
+        ? \`Last saved \${formatDateTime(config.updatedAt)}\`
+        : "Using built-in defaults (not saved yet).";
+    }
+
+    async function loadNameservers() {
+      const response = await fetch("/dns/nameservers");
+      if (!response.ok) {
+        nameserverStatus.textContent = "Could not load nameserver config.";
+        return;
+      }
+      fillNameserverForm(await response.json());
+    }
+
+    async function saveNameservers() {
+      const user = prompt("Admin HTTP user (same as Reset)");
+      if (!user) return;
+      const password = prompt("Admin HTTP password");
+      if (password === null) return;
+
+      const payload = {
+        ns1: { a: ns1A.value.trim(), aaaa: ns1AAAA.value.trim() },
+        ns2: { a: ns2A.value.trim(), aaaa: ns2AAAA.value.trim() },
+        soaMname: soaMname.value.trim(),
+        soaRname: soaRname.value.trim()
+      };
+
+      const response = await fetch("/dns/nameservers", {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          "authorization": \`Basic \${btoa(\`\${user}:\${password}\`)}\`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ message: "Save failed" }));
+        const message = body.message || (body.validation ? JSON.stringify(body.validation) : "Save failed");
+        renderError(new Error(message));
+        nameserverStatus.textContent = "Save failed.";
+        return;
+      }
+
+      fillNameserverForm(await response.json());
+      nameserverStatus.textContent = "Saved. Generate/Download the DNS zone next.";
+      await generateZone();
+    }
+
     function downloadZone() {
       const params = dnsZoneParams();
       params.set("download", "true");
@@ -1415,11 +1524,14 @@ export function dashboardHtml(): string {
     $("generateZone").addEventListener("click", generateZone);
     $("downloadZone").addEventListener("click", downloadZone);
     $("reset").addEventListener("click", resetState);
+    $("saveNameservers").addEventListener("click", saveNameservers);
+    $("reloadNameservers").addEventListener("click", loadNameservers);
 
     renderAuthUsers();
     loadAuthUsers()
       .then(applyTemplate)
       .then(refreshState)
+      .then(loadNameservers)
       .catch(renderError);
   </script>
 </body>

@@ -29,7 +29,13 @@ test("serves downloadable signed zones and CSV with DS records", async () => {
     ]
   });
 
-  const app = await buildControlApp(testConfig(join(tempDir, "dnssec-keys.json")), domains, new CommandLogRepository());
+  const app = await buildControlApp(
+    testConfig(join(tempDir, "dnssec-keys.json"), {
+      tldNameserverPath: join(tempDir, "tld-nameservers.json")
+    }),
+    domains,
+    new CommandLogRepository()
+  );
 
   try {
     const zoneResponse = await app.inject({
@@ -47,6 +53,62 @@ test("serves downloadable signed zones and CSV with DS records", async () => {
     assert.equal(csvResponse.statusCode, 200);
     assert.match(csvResponse.body, /"dsRecords"/);
     assert.match(csvResponse.body, /12345/);
+  } finally {
+    await app.close();
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("GET/PUT /dns/nameservers updates glue and SOA used by /dns/zone", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "epp-ns-"));
+  const domains = new DomainService(new InMemoryDomainRepository());
+  const app = await buildControlApp(
+    testConfig(join(tempDir, "dnssec-keys.json"), {
+      tldNameserverPath: join(tempDir, "tld-nameservers.json")
+    }),
+    domains,
+    new CommandLogRepository()
+  );
+  const auth = `Basic ${Buffer.from("admin:test-reset-password").toString("base64")}`;
+
+  try {
+    const initial = await app.inject({ method: "GET", url: "/dns/nameservers" });
+    assert.equal(initial.statusCode, 200);
+    assert.match(initial.json().soaMname, /ns1\.melendez\./);
+
+    const unauthorized = await app.inject({
+      method: "PUT",
+      url: "/dns/nameservers",
+      payload: {
+        ns1: { a: "203.0.113.10", aaaa: "2001:db8::10" },
+        ns2: { a: "203.0.113.11", aaaa: "2001:db8::11" },
+        soaMname: "ns1.melendez.",
+        soaRname: "hostmaster.ns1.melendez."
+      }
+    });
+    assert.equal(unauthorized.statusCode, 401);
+
+    const updated = await app.inject({
+      method: "PUT",
+      url: "/dns/nameservers",
+      headers: { authorization: auth },
+      payload: {
+        ns1: { a: "203.0.113.10", aaaa: "2001:db8::10" },
+        ns2: { a: "203.0.113.11", aaaa: "2001:db8::11" },
+        soaMname: "ns2.melendez.",
+        soaRname: "ops.ns2.melendez."
+      }
+    });
+    assert.equal(updated.statusCode, 200);
+    assert.equal(updated.json().ns1.a, "203.0.113.10");
+
+    const zone = await app.inject({ method: "GET", url: "/dns/zone?dnssec=false" });
+    assert.equal(zone.statusCode, 200);
+    assert.match(zone.body, /@ IN SOA ns2\.melendez\. ops\.ns2\.melendez\. \(/);
+    assert.match(zone.body, /ns1 IN A 203\.0\.113\.10/);
+    assert.match(zone.body, /ns1 IN AAAA 2001:db8::10/);
+    assert.match(zone.body, /ns2 IN A 203\.0\.113\.11/);
+    assert.match(zone.body, /ns2 IN AAAA 2001:db8::11/);
   } finally {
     await app.close();
     rmSync(tempDir, { recursive: true, force: true });
@@ -109,6 +171,7 @@ function testConfig(dnssecKeyPath: string, overrides: Partial<AppConfig> = {}): 
     storageMode: "memory",
     sqlitePath: ":memory:",
     dnssecKeyPath,
+    tldNameserverPath: join(tmpdir(), "tld-nameservers-test.json"),
     repositoryId: "ICANNRST",
     eppTlsRequireClientCert: false,
     ...overrides

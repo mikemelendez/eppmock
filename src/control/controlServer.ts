@@ -12,6 +12,7 @@ import type { CommandLogRepository } from "../epp/commandLogRepository.js";
 import { sendEppRequest } from "../epp/eppClient.js";
 import { generateMelendezZone } from "../dns/melendezZone.js";
 import type { DnsZoneOptions } from "../dns/types.js";
+import { TldNameserverStore, tldNameserverConfigSchema } from "../dns/tldNameservers.js";
 import { ensureDefaultRegistry } from "../registry/defaultRegistry.js";
 import { dashboardHtml } from "./dashboardHtml.js";
 
@@ -107,6 +108,7 @@ export async function buildControlApp(
   extras?: { hosts?: HostService; contacts?: ContactService }
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: true });
+  const nameserverStore = new TldNameserverStore(config.tldNameserverPath);
 
   await app.register(cors, { origin: true });
 
@@ -132,13 +134,36 @@ export async function buildControlApp(
       .send(csv);
   });
 
+  app.get("/dns/nameservers", async () => nameserverStore.load());
+
+  app.put("/dns/nameservers", async (request, reply) => {
+    if (!isAuthorizedReset(request.headers.authorization, config)) {
+      return unauthorized(reply);
+    }
+
+    const body = tldNameserverConfigSchema.omit({ updatedAt: true }).parse(request.body ?? {});
+    const saved = nameserverStore.save(body);
+
+    if (extras?.contacts && extras.hosts) {
+      await ensureDefaultRegistry({
+        domains,
+        contacts: extras.contacts,
+        hosts: extras.hosts,
+        nameserverConfig: saved
+      });
+    }
+
+    return saved;
+  });
+
   app.get("/dns/zone", async (request, reply) => {
     const query = dnsZoneQuerySchema.parse(request.query);
     const zone = generateMelendezZone(
       await domains.list(),
       query satisfies DnsZoneOptions,
       { keyPath: config.dnssecKeyPath },
-      extras?.hosts ? await extras.hosts.list() : []
+      extras?.hosts ? await extras.hosts.list() : [],
+      nameserverStore.load()
     );
     const response = reply.type("text/plain; charset=utf-8");
 
@@ -164,7 +189,12 @@ export async function buildControlApp(
     );
     commandLog.reset();
     if (extras?.contacts && extras.hosts) {
-      await ensureDefaultRegistry({ domains, contacts: extras.contacts, hosts: extras.hosts });
+      await ensureDefaultRegistry({
+        domains,
+        contacts: extras.contacts,
+        hosts: extras.hosts,
+        nameserverConfig: nameserverStore.load()
+      });
     }
     return { ok: true };
   });
@@ -177,7 +207,12 @@ export async function buildControlApp(
     await domains.reset([]);
     commandLog.reset();
     if (extras?.contacts && extras.hosts) {
-      await ensureDefaultRegistry({ domains, contacts: extras.contacts, hosts: extras.hosts });
+      await ensureDefaultRegistry({
+        domains,
+        contacts: extras.contacts,
+        hosts: extras.hosts,
+        nameserverConfig: nameserverStore.load()
+      });
     }
     return { ok: true };
   });
