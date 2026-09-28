@@ -164,7 +164,11 @@ function rrsigRecord(rrset: { owner: string; type: string; records: ZoneRecord[]
     rrsigPrefix,
     ...rrset.records.map((record) => canonicalRecord(record, ttl))
   ]);
-  const signature = derToDnsEcdsa(createSign("SHA256").update(signedData).sign(key.privateKeyPem)).toString("base64");
+  // ECDSAP256SHA256 (alg 13): SHA-256 digest, IEEE-P1363 wire signature r||s (32+32), not DER.
+  const signature = createSign("SHA256")
+    .update(signedData)
+    .sign({ key: key.privateKeyPem, dsaEncoding: "ieee-p1363" })
+    .toString("base64");
 
   return {
     owner: rrset.owner,
@@ -348,39 +352,38 @@ function uint32(value: number): Buffer {
   return buffer;
 }
 
+/** RFC 4034 §3.1.5 presentation: YYYYMMDDHHmmSS (no `T`). */
 function dnssecTime(value: Date): string {
-  return value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "");
+  const iso = value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "");
+  // toISOString yields `YYYYMMDDTHHmmSS` after stripping dashes/colons; drop the T.
+  return iso.includes("T") ? iso.replace("T", "") : iso;
 }
 
+/**
+ * Encode an RRSIG time field as uint32 epoch seconds.
+ * Accepts RFC 4034 `YYYYMMDDHHmmSS` or the mistaken `YYYYMMDDTHHmmSS` form.
+ */
 function dnssecTimeBuffer(value: string): Buffer {
+  const compact = value.includes("T") ? value.replace("T", "") : value;
+
+  if (!/^\d{14}$/.test(compact)) {
+    throw new Error(`Invalid DNSSEC time: ${value}`);
+  }
+
   const date = Date.UTC(
-    Number(value.slice(0, 4)),
-    Number(value.slice(4, 6)) - 1,
-    Number(value.slice(6, 8)),
-    Number(value.slice(8, 10)),
-    Number(value.slice(10, 12)),
-    Number(value.slice(12, 14))
+    Number(compact.slice(0, 4)),
+    Number(compact.slice(4, 6)) - 1,
+    Number(compact.slice(6, 8)),
+    Number(compact.slice(8, 10)),
+    Number(compact.slice(10, 12)),
+    Number(compact.slice(12, 14))
   );
+
+  if (!Number.isFinite(date)) {
+    throw new Error(`Invalid DNSSEC time: ${value}`);
+  }
+
   return uint32(Math.floor(date / 1000));
-}
-
-function derToDnsEcdsa(signature: Buffer): Buffer {
-  let offset = 2;
-  offset += 1;
-  const rLength = signature[offset];
-  offset += 1;
-  const r = signature.subarray(offset, offset + rLength);
-  offset += rLength;
-  offset += 1;
-  const sLength = signature[offset];
-  offset += 1;
-  const s = signature.subarray(offset, offset + sLength);
-  return Buffer.concat([leftPadCoordinate(r), leftPadCoordinate(s)]);
-}
-
-function leftPadCoordinate(value: Buffer): Buffer {
-  const trimmed = value.length > 32 ? value.subarray(value.length - 32) : value;
-  return Buffer.concat([Buffer.alloc(32 - trimmed.length), trimmed]);
 }
 
 const base32HexAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUV";
