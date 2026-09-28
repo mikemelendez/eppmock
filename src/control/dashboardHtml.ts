@@ -554,7 +554,8 @@ export function dashboardHtml(): string {
     </header>
 
     <section class="grid">
-      <div class="card">
+      <div class="split">
+<div class="card">
         <div class="card-head">
           <div>
             <h2>Request Builder</h2>
@@ -618,83 +619,7 @@ export function dashboardHtml(): string {
         </div>
       </div>
 
-      <div class="split">
-        <div class="card">
-          <div class="card-head">
-            <div>
-              <h2>Response</h2>
-              <p class="muted">Greeting, login, and command response.</p>
-            </div>
-          </div>
-          <div class="card-body">
-            <div id="responses" class="response-stack">
-              <div class="pill-row"><span>No requests yet</span><span>Ready</span></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <div>
-              <h2>Registry State</h2>
-              <p class="muted">Current domains and latest commands.</p>
-            </div>
-            <div class="actions" style="margin-top: 0">
-              <button id="downloadCsv">Download CSV</button>
-              <button id="refresh">Refresh</button>
-            </div>
-          </div>
-          <div class="card-body">
-            <h2>Domains</h2>
-            <div id="domains" class="list" style="margin: 12px 0 20px"></div>
-            <h2>Commands</h2>
-            <div id="commands" class="list" style="margin-top: 12px"></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <div>
-              <h2>TLD nameservers</h2>
-              <p class="muted">Glue for ns1/ns2.melendez and SOA mailbox. Save, then Generate the zone to deploy.</p>
-            </div>
-            <div class="actions" style="margin-top: 0">
-              <button id="reloadNameservers" type="button">Reload</button>
-              <button id="saveNameservers" type="button">Save</button>
-            </div>
-          </div>
-          <div class="card-body">
-            <div class="dnssec-grid">
-              <label>
-                ns1 IPv4 (A)
-                <input id="ns1A" autocomplete="off" placeholder="52.200.129.52" />
-              </label>
-              <label>
-                ns1 IPv6 (AAAA)
-                <input id="ns1AAAA" autocomplete="off" placeholder="2600:1f18:…:c7c9" />
-              </label>
-              <label>
-                ns2 IPv4 (A)
-                <input id="ns2A" autocomplete="off" placeholder="67.217.246.69" />
-              </label>
-              <label>
-                ns2 IPv6 (AAAA)
-                <input id="ns2AAAA" autocomplete="off" placeholder="2607:f1c0:…::1" />
-              </label>
-              <label>
-                SOA MNAME
-                <input id="soaMname" autocomplete="off" placeholder="ns1.melendez." />
-              </label>
-              <label>
-                SOA RNAME
-                <input id="soaRname" autocomplete="off" placeholder="hostmaster.ns1.melendez." />
-              </label>
-            </div>
-            <p id="nameserverStatus" class="muted" style="margin: 0">Load current glue from the server.</p>
-          </div>
-        </div>
-
-        <div class="card">
+<div class="card">
           <div class="card-head">
             <div>
               <h2>DNS Zone</h2>
@@ -738,7 +663,7 @@ export function dashboardHtml(): string {
           </div>
         </div>
 
-        <div class="card">
+<div class="card">
           <div class="card-head">
             <div>
               <h2>Help</h2>
@@ -833,7 +758,84 @@ export function dashboardHtml(): string {
             </div>
           </div>
         </div>
+      </div>
 
+      <div class="split">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Response</h2>
+              <p class="muted">Greeting, login, and command response.</p>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="responses" class="response-stack">
+              <div class="pill-row"><span>No requests yet</span><span>Ready</span></div>
+            </div>
+          </div>
+        </div>
+
+<div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Registry State</h2>
+              <p class="muted">Current domains and latest commands.</p>
+            </div>
+            <div class="actions" style="margin-top: 0">
+              <button id="downloadCsv">Download CSV</button>
+              <button id="refresh">Refresh</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <h2>Domains</h2>
+            <div id="domains" class="list" style="margin: 12px 0 20px"></div>
+            <h2>Commands</h2>
+            <div id="commands" class="list" style="margin-top: 12px"></div>
+          </div>
+        </div>
+
+<div class="card">
+          <div class="card-head">
+            <div>
+              <h2>TLD nameservers</h2>
+              <p class="muted">Glue for ns1/ns2.melendez and SOA mailbox. Save, then Generate the zone to deploy.</p>
+            </div>
+            <div class="actions" style="margin-top: 0">
+              <button id="reloadNameservers" type="button">Reload</button>
+              <button id="saveNameservers" type="button">Save</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="dnssec-grid">
+              <label>
+                ns1 IPv4 (A)
+                <input id="ns1A" autocomplete="off" placeholder="52.200.129.52" />
+              </label>
+              <label>
+                ns1 IPv6 (AAAA)
+                <input id="ns1AAAA" autocomplete="off" placeholder="2600:1f18:…:c7c9" />
+              </label>
+              <label>
+                ns2 IPv4 (A)
+                <input id="ns2A" autocomplete="off" placeholder="67.217.246.69" />
+              </label>
+              <label>
+                ns2 IPv6 (AAAA)
+                <input id="ns2AAAA" autocomplete="off" placeholder="2607:f1c0:…::1" />
+              </label>
+              <label>
+                SOA MNAME
+                <input id="soaMname" autocomplete="off" placeholder="ns1.melendez." />
+              </label>
+              <label>
+                SOA RNAME
+                <input id="soaRname" autocomplete="off" placeholder="hostmaster.ns1.melendez." />
+              </label>
+            </div>
+            <p id="nameserverStatus" class="muted" style="margin: 0">Load current glue from the server.</p>
+          </div>
+        </div>
+      </div>
     </section>
     <p class="credits">This site was created for testing purposes -  Credits : Mike Melendez miguel@melendez.mx</p>
   </main>
