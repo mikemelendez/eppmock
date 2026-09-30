@@ -54,8 +54,8 @@ Do **not** proxy EPP through Caddy. Details: `docs/AWS_DEPLOYMENT.md`.
 
 | Case | Status / what remains |
 | --- | --- |
-| epp-01 | Public `A` + TCP 700 + browser-trusted SAN are in place. Optionally add `AAAA`. When ICANN publishes `epp.clientACL`, restrict SG 700 to those IPs. |
-| epp-03 | Put RST client-cert SHA-256 fingerprints on `melendez-registrar` / `melendez-tester` in GitHub `EPP_USERS` (`./deploy/fingerprint-cert.sh client.pem`), then redeploy. With fingerprints set, unknown/"strange" client certs are dropped before the greeting; missing certs likewise. Wrong allowlisted cert still greets but login returns `2200`. Dashboard plaintext login does not need a client cert. |
+| epp-01 | Public `A` + TCP 700 + browser-trusted SAN are in place. Optionally add `AAAA`. When ICANN publishes `epp.clientACL`, restrict SG 700 to those IPs. Each TLS connect logs the peer leaf/chain (`TLS client cert session=…`) so RST normal / unordered / extraneous presentations are visible in app logs. |
+| epp-03 | Put RST client-cert SHA-256 fingerprints on `melendez-registrar` / `melendez-tester` in GitHub `EPP_USERS` (`./deploy/fingerprint-cert.sh client.pem`), then redeploy. Until then, greeting on 700 works; TLS login is rejected. Dashboard login does not need a client cert. |
 | epp-17 | One instance must serve every `A`/`AAAA` (no second proxy in front of 700). |
 
 Example `EPP_USERS` after ICANN issues certs (keep the passwords you already use):

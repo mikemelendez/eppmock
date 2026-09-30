@@ -24,6 +24,18 @@ export interface EppServerOptions {
   tls?: boolean;
 }
 
+interface PeerCertSummary {
+  index: number;
+  role: "leaf" | "chain";
+  fingerprint256: string;
+  subject: string;
+  issuer: string;
+  serialNumber: string;
+  validFrom: string;
+  validTo: string;
+  pem: string;
+}
+
 /**
  * TLS 1.2 cipher suites recommended by RFC 9325 §4.2. TLS 1.3 suites are
  * negotiated separately by Node and are already AEAD-only.
@@ -47,25 +59,21 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
     tls: options?.tls ?? isTlsEnabled(config)
   };
 
-  const allowedClientCerts = allowedClientCertFingerprints(config);
-
   const onConnection = (socket: net.Socket): void => {
+    const sessionId = randomUUID();
     const presented = peerCertificateFingerprint(socket);
 
-    // RST epp-03 "strange"/unknown client certs: refuse the TLS session itself when
-    // fingerprints are configured. Only exact allowlisted leaf certs may proceed.
-    // Plaintext dashboard listener skips this check.
-    if (
-      resolved.tls &&
-      !clientCertificateAllowed(presented, allowedClientCerts, config.eppTlsRequireClientCert)
-    ) {
-      socket.destroy();
-      return;
+    if (resolved.tls) {
+      logClientCertificateChain(socket as tls.TLSSocket, {
+        label: resolved.label,
+        sessionId,
+        remote: formatRemote(socket)
+      });
     }
 
     const decoder = new EppFrameDecoder();
     const session: EppSession = {
-      id: randomUUID(),
+      id: sessionId,
       authenticated: false,
       tls: resolved.tls,
       connectedAt: new Date(),
@@ -92,8 +100,6 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
           key: readFileSync(config.eppTlsKeyPath as string),
           ca: config.eppTlsCaPath ? readFileSync(config.eppTlsCaPath) : undefined,
           requestCert: config.eppTlsRequireClientCert,
-          // Keep false so RFC 8446 / epp-01 extraneous + disordered client chains still
-          // complete the handshake; identity is enforced via the fingerprint allowlist.
           rejectUnauthorized: false,
           minVersion: "TLSv1.2",
           maxVersion: "TLSv1.3",
@@ -125,53 +131,126 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
 }
 
 function peerCertificateFingerprint(socket: net.Socket): string | undefined {
-  if (!("getPeerCertificate" in socket) || typeof socket.getPeerCertificate !== "function") {
-    return undefined;
-  }
-
-  const certificate = (socket as tls.TLSSocket).getPeerCertificate();
-
-  if (!certificate || !("fingerprint256" in certificate) || !certificate.fingerprint256) {
-    return undefined;
-  }
-
-  return normalizeFingerprint(String(certificate.fingerprint256));
+  const chain = collectPeerCertificateChain(socket);
+  return chain[0]?.fingerprint256;
 }
 
-/** SHA-256 fingerprints configured on registrar accounts (allowlist for mTLS). */
-export function allowedClientCertFingerprints(config: Pick<AppConfig, "authUsers">): Set<string> {
-  const fingerprints = new Set<string>();
+/** Walk getPeerCertificate(true) and return leaf-first summaries (including PEM). */
+function collectPeerCertificateChain(socket: net.Socket): PeerCertSummary[] {
+  if (!("getPeerCertificate" in socket) || typeof socket.getPeerCertificate !== "function") {
+    return [];
+  }
 
-  for (const user of config.authUsers) {
-    const fingerprint = normalizeFingerprint(user.clientCertSha256);
+  const detailed = (socket as tls.TLSSocket).getPeerCertificate(true);
+  if (!detailed || Object.keys(detailed).length === 0) {
+    return [];
+  }
 
-    if (fingerprint) {
-      fingerprints.add(fingerprint);
+  const chain: PeerCertSummary[] = [];
+  const seen = new Set<object>();
+  let current: tls.DetailedPeerCertificate | tls.PeerCertificate | undefined = detailed;
+
+  while (current && Object.keys(current).length > 0 && !seen.has(current)) {
+    seen.add(current);
+
+    if (!("fingerprint256" in current) || !current.fingerprint256) {
+      break;
+    }
+
+    chain.push({
+      index: chain.length,
+      role: chain.length === 0 ? "leaf" : "chain",
+      fingerprint256: normalizeFingerprint(String(current.fingerprint256)) ?? "",
+      subject: formatCertName(current.subject),
+      issuer: formatCertName(current.issuer),
+      serialNumber: String(current.serialNumber ?? ""),
+      validFrom: String(current.valid_from ?? ""),
+      validTo: String(current.valid_to ?? ""),
+      pem: rawToPem(current.raw)
+    });
+
+    const next: tls.DetailedPeerCertificate | tls.PeerCertificate | undefined =
+      "issuerCertificate" in current ? current.issuerCertificate : undefined;
+    if (!next || next === current) {
+      break;
+    }
+    current = next;
+  }
+
+  return chain;
+}
+
+/** Log every peer cert Node exposes after the handshake (leaf + chain). */
+function logClientCertificateChain(
+  socket: tls.TLSSocket,
+  meta: { label: string; sessionId: string; remote: string }
+): void {
+  const chain = collectPeerCertificateChain(socket);
+  const authorized = socket.authorized;
+  const authorizationError = socket.authorizationError
+    ? String(socket.authorizationError)
+    : undefined;
+  const alpn = socket.alpnProtocol ? String(socket.alpnProtocol) : undefined;
+  const cipher = socket.getCipher();
+
+  console.log(
+    `${meta.label} TLS client cert session=${meta.sessionId} remote=${meta.remote}` +
+      ` authorized=${authorized}` +
+      (authorizationError ? ` authorizationError=${authorizationError}` : "") +
+      ` chainLength=${chain.length}` +
+      (cipher ? ` cipher=${cipher.name}` : "") +
+      (alpn ? ` alpn=${alpn}` : "")
+  );
+
+  if (chain.length === 0) {
+    console.log(`${meta.label} TLS client cert session=${meta.sessionId} (no peer certificate presented)`);
+    return;
+  }
+
+  for (const cert of chain) {
+    console.log(
+      `${meta.label} TLS client cert session=${meta.sessionId}` +
+        ` [${cert.index}:${cert.role}]` +
+        ` sha256=${cert.fingerprint256}` +
+        ` subject=${cert.subject}` +
+        ` issuer=${cert.issuer}` +
+        ` serial=${cert.serialNumber}` +
+        ` notBefore=${cert.validFrom}` +
+        ` notAfter=${cert.validTo}`
+    );
+    console.log(
+      `${meta.label} TLS client cert session=${meta.sessionId} [${cert.index}:${cert.role}] pem=\n${cert.pem}`
+    );
+  }
+}
+
+function formatRemote(socket: net.Socket): string {
+  const host = socket.remoteAddress ?? "?";
+  const port = socket.remotePort ?? "?";
+  return `${host}:${port}`;
+}
+
+function formatCertName(name: tls.PeerCertificate["subject"] | undefined): string {
+  if (!name || typeof name !== "object") {
+    return "";
+  }
+
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(name)) {
+    if (typeof value === "string" && value) {
+      parts.push(`${key}=${value}`);
     }
   }
-
-  return fingerprints;
+  return parts.join(", ");
 }
 
-/**
- * When an allowlist is configured (and/or client certs are required), only identical
- * allowlisted leaf certificates may keep the connection. Unknown/"strange" certs and
- * missing certs are rejected at the TLS session layer.
- */
-export function clientCertificateAllowed(
-  presented: string | undefined,
-  allowed: Set<string>,
-  requireClientCert: boolean
-): boolean {
-  if (allowed.size === 0) {
-    return !(requireClientCert && !presented);
+function rawToPem(raw: Buffer | undefined): string {
+  if (!raw || raw.length === 0) {
+    return "";
   }
 
-  if (!presented) {
-    return false;
-  }
-
-  return allowed.has(normalizeFingerprint(presented) ?? "");
+  const body = raw.toString("base64").match(/.{1,64}/g)?.join("\n") ?? "";
+  return `-----BEGIN CERTIFICATE-----\n${body}\n-----END CERTIFICATE-----`;
 }
 
 function normalizeFingerprint(value: string | undefined): string | undefined {
