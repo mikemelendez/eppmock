@@ -97,9 +97,9 @@ export function domainDelegationRecords(
         records.push({ owner: glueOwner, type: hostRecord.type, ttl, rdata: hostRecord.rdata });
       }
     } else {
-      const octet = 100 + index * 2 + nameserverIndex;
-      records.push({ owner: glueOwner, type: "A", ttl, rdata: `192.0.2.${octet}` });
-      records.push({ owner: glueOwner, type: "AAAA", ttl, rdata: `2001:db8:1::${octet}` });
+      const glue = syntheticGlueAddresses(index, nameserverIndex);
+      records.push({ owner: glueOwner, type: "A", ttl, rdata: glue.a });
+      records.push({ owner: glueOwner, type: "AAAA", ttl, rdata: glue.aaaa });
     }
   }
 
@@ -172,6 +172,28 @@ function syntheticDsRecord(domain: DomainRecord, index: number): DomainRecord["d
     digestType: 2,
     digest
   };
+}
+
+/**
+ * Documentation-range glue that stays valid for large registries.
+ * Slot 0 keeps 192.0.2.100 / 2001:db8:1::64 (legacy 100 offset, hex hextet).
+ */
+export function syntheticGlueAddresses(
+  index: number,
+  nameserverIndex: number
+): { a: string; aaaa: string } {
+  const id = 100 + index * 2 + nameserverIndex;
+  const a =
+    id <= 255
+      ? `192.0.2.${id}`
+      : `198.18.${(id >>> 8) & 0xff}.${id & 0xff}`;
+  const high = (id >>> 16) & 0xffff;
+  const low = id & 0xffff;
+  const aaaa =
+    high === 0
+      ? `2001:db8:1::${low.toString(16)}`
+      : `2001:db8:1:${high.toString(16)}::${low.toString(16)}`;
+  return { a, aaaa };
 }
 
 function ensureTrailingDot(value: string): string {
