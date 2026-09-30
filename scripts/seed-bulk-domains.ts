@@ -7,6 +7,7 @@
  *   npx tsx scripts/seed-bulk-domains.ts --count 10000
  *   npx tsx scripts/seed-bulk-domains.ts --count 10000 --sqlite /app/data/epp-testing-tool.sqlite
  *   npx tsx scripts/seed-bulk-domains.ts --count 10000 --sqlite ./data/epp.sqlite --zone ./melendez.zone
+ *   npx tsx scripts/seed-bulk-domains.ts --count 10000 --zone ./melendez.zone --registry ./registry.json
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -16,6 +17,7 @@ import { DomainService } from "../src/domain/domainService.js";
 import { InMemoryDomainRepository } from "../src/domain/inMemoryDomainRepository.js";
 import { SqliteDomainRepository } from "../src/domain/sqliteDomainRepository.js";
 import { TldNameserverStore } from "../src/dns/tldNameservers.js";
+import { buildRegistryExport, writeRegistryExport } from "../src/rdap/registryExport.js";
 
 function arg(name: string, fallback?: string): string | undefined {
   const index = process.argv.indexOf(name);
@@ -30,12 +32,15 @@ function hasFlag(name: string): boolean {
 const count = Number(arg("--count", "10000"));
 const sqlitePath = arg("--sqlite");
 const zonePath = arg("--zone");
+const registryPath = arg("--registry");
 const keyPath = arg("--keys", resolve("data/dnssec-keys.json"))!;
 const nameserverPath = arg("--nameservers", resolve("data/tld-nameservers.json"))!;
 const prefix = arg("--prefix", "d");
 
 if (!Number.isInteger(count) || count < 1 || count > 50_000) {
-  console.error("Usage: npx tsx scripts/seed-bulk-domains.ts --count <1-50000> [--sqlite path] [--zone out.zone]");
+  console.error(
+    "Usage: npx tsx scripts/seed-bulk-domains.ts --count <1-50000> [--sqlite path] [--zone out.zone] [--registry registry.json]"
+  );
   process.exit(1);
 }
 
@@ -62,11 +67,13 @@ console.log(
   )
 );
 
+const listed = await domains.list();
+
 if (zonePath || hasFlag("--zone")) {
   const out = resolve(zonePath || "melendez.zone");
   mkdirSync(dirname(out), { recursive: true });
   const zone = generateMelendezZone(
-    await domains.list(),
+    listed,
     {
       dnssec: true,
       keyAction: "generate",
@@ -81,4 +88,11 @@ if (zonePath || hasFlag("--zone")) {
   );
   writeFileSync(out, zone);
   console.log(JSON.stringify({ zone: out, bytes: Buffer.byteLength(zone) }, null, 2));
+}
+
+if (registryPath || hasFlag("--registry") || zonePath || hasFlag("--zone")) {
+  const out = resolve(registryPath || "registry.json");
+  const document = buildRegistryExport({ domains: listed });
+  writeRegistryExport(out, document);
+  console.log(JSON.stringify({ registry: out, domains: document.domains.length }, null, 2));
 }

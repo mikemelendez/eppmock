@@ -276,15 +276,26 @@ curl -u "$RESET_HTTP_USER:$RESET_HTTP_PASSWORD" \
   -d '{"count":10000}' \
   https://eppmock.melendez.mx/admin/domains/seed-bulk
 
-# 2) Download the signed zone (~30–60s for 10k names)
+# 2) Download the signed zone (~30–60s for 10k names).
+#    This also regenerates data/rdap/registry.json for RDAP.
 curl -o melendez.zone \
   'https://eppmock.melendez.mx/dns/zone?dnssec=true&download=true'
+
+# 3) Fetch the RDAP registry dump (EPP fields the zone does not carry)
+curl -o registry.json \
+  'https://eppmock.melendez.mx/rdap/registry.json'
+# same file via control: https://eppmock.melendez.mx/dns/registry.json
 ```
+
+`registry.json` has a fixed `registrar.ianaId` of `9999`, a `databaseUpdated`
+timestamp, and one `domains[]` object per delegated name (ROID handle, statuses,
+dates, registrant, in-bailiwick NS glue, DS). Names absent from that file stay
+404 on the RDAP server.
 
 Local/dev without HTTP (from a git checkout with Node):
 
 ```bash
-npx tsx scripts/seed-bulk-domains.ts --count 10000 --zone ./melendez.zone
+npx tsx scripts/seed-bulk-domains.ts --count 10000 --zone ./melendez.zone --registry ./registry.json
 ```
 
 ## Public URLs

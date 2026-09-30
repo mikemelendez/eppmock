@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -29,9 +29,11 @@ test("serves downloadable signed zones and CSV with DS records", async () => {
     ]
   });
 
+  const registryPath = join(tempDir, "rdap", "registry.json");
   const app = await buildControlApp(
     testConfig(join(tempDir, "dnssec-keys.json"), {
-      tldNameserverPath: join(tempDir, "tld-nameservers.json")
+      tldNameserverPath: join(tempDir, "tld-nameservers.json"),
+      rdapRegistryPath: registryPath
     }),
     domains,
     new CommandLogRepository()
@@ -48,6 +50,19 @@ test("serves downloadable signed zones and CSV with DS records", async () => {
     assert.match(zoneResponse.body, /@ IN DNSKEY 257 3 13 /);
     assert.match(zoneResponse.body, /signed IN DS 12345 13 2 ABCDEF/);
     assert.match(zoneResponse.body, / IN RRSIG /);
+
+    const saved = JSON.parse(readFileSync(registryPath, "utf8")) as {
+      registrar: { ianaId: number };
+      domains: Array<{ ldhName: string; dsData: Array<{ keyTag: number }> }>;
+    };
+    assert.equal(saved.registrar.ianaId, 9999);
+    assert.equal(saved.domains[0].ldhName, "signed.melendez");
+    assert.equal(saved.domains[0].dsData[0].keyTag, 12345);
+
+    const registryResponse = await app.inject({ method: "GET", url: "/dns/registry.json" });
+    assert.equal(registryResponse.statusCode, 200);
+    assert.equal(registryResponse.headers["content-disposition"], 'attachment; filename="registry.json"');
+    assert.equal(registryResponse.json().domains[0].ldhName, "signed.melendez");
 
     const csvResponse = await app.inject({ method: "GET", url: "/domains.csv" });
     assert.equal(csvResponse.statusCode, 200);
@@ -254,6 +269,7 @@ function testConfig(dnssecKeyPath: string, overrides: Partial<AppConfig> = {}): 
     sqlitePath: ":memory:",
     dnssecKeyPath,
     tldNameserverPath: join(tmpdir(), "tld-nameservers-test.json"),
+    rdapRegistryPath: join(tmpdir(), "rdap-registry-test.json"),
     repositoryId: "ICANNRST",
     eppTlsRequireClientCert: false,
     ...overrides

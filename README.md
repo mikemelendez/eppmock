@@ -101,6 +101,7 @@ Available variables:
 - `STORAGE_MODE`, default `sqlite`, values: `sqlite` or `memory`
 - `SQLITE_PATH`, default `data/epp-testing-tool.sqlite`
 - `DNSSEC_KEY_PATH`, default `data/dnssec-keys.json`
+- `RDAP_REGISTRY_PATH`, default `data/rdap/registry.json` (regenerated whenever `/dns/zone` runs; also at `/rdap/registry.json`)
 
 When `NODE_ENV=production`, `RESET_HTTP_PASSWORD` must be changed from defaults and `EPP_USERS` must be explicitly set.
 

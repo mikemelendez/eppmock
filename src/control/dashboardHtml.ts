@@ -626,6 +626,7 @@ export function dashboardHtml(): string {
               <p class="muted">Generate a BIND-style signed zone file for the entire .melendez TLD.</p>
             </div>
             <div class="actions" style="margin-top: 0">
+              <button id="downloadRegistry" type="button" title="Download RDAP registry.json">registry.json</button>
               <button id="downloadZone">Download</button>
               <button id="generateZone">Generate</button>
             </div>
@@ -689,7 +690,7 @@ export function dashboardHtml(): string {
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-globe"/></svg></span><span class="help-title">DNS Zone Generator</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-                    <div class="help-content"><p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes dual-stack TLD nameserver glue (ns1/ns2 A and AAAA), NS delegations for every persisted .melendez domain, DS records from secDNS data, glue records for in-bailiwick nameservers, persisted KSK/ZSK DNSKEY material, RRSIG signatures, NSEC3 records, and configurable NSEC3PARAM values. DNSSEC is on by default (NSEC3 iterations 0, empty salt). Generate after startup to sign nic, miguel, and example.</p></div>
+                    <div class="help-content"><p>The DNS Zone card generates a BIND-style zone file for the entire .melendez TLD. It includes dual-stack TLD nameserver glue (ns1/ns2 A and AAAA), NS delegations for every persisted .melendez domain, DS records from secDNS data, glue records for in-bailiwick nameservers, persisted KSK/ZSK DNSKEY material, RRSIG signatures, NSEC3 records, and configurable NSEC3PARAM values. DNSSEC is on by default (NSEC3 iterations 0, empty salt). Generate also writes <code>registry.json</code> (EPP-derived RDAP dump: registrant, NS glue, DS) under the data volume and publishes it at <code>/dns/registry.json</code> and <code>/rdap/registry.json</code> for the RDAP server.</p></div>
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-globe"/></svg></span><span class="help-title">Move TLD nameservers</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
@@ -1502,6 +1503,10 @@ export function dashboardHtml(): string {
       window.location.href = \`/dns/zone?\${params.toString()}\`;
     }
 
+    function downloadRegistry() {
+      window.location.href = "/dns/registry.json";
+    }
+
     function dnsZoneParams() {
       const params = new URLSearchParams();
       params.set("dnssec", dnssecEnabled.checked ? "true" : "false");
@@ -1571,6 +1576,7 @@ export function dashboardHtml(): string {
     });
     $("generateZone").addEventListener("click", generateZone);
     $("downloadZone").addEventListener("click", downloadZone);
+    $("downloadRegistry").addEventListener("click", downloadRegistry);
     $("reset").addEventListener("click", resetState);
     $("saveNameservers").addEventListener("click", saveNameservers);
     $("reloadNameservers").addEventListener("click", loadNameservers);
