@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { defaultAuthUsers, type AppConfig } from "../config.js";
@@ -9,7 +12,7 @@ import { HostService } from "../host/hostService.js";
 import { InMemoryHostRepository } from "../host/inMemoryHostRepository.js";
 import { buildRdapApp } from "./rdapServer.js";
 
-function testConfig(): AppConfig {
+function testConfig(rdapRegistryPath = join(tmpdir(), "rdap-registry-test.json")): AppConfig {
   return {
     eppHost: "127.0.0.1",
     eppPort: 7000,
@@ -28,12 +31,13 @@ function testConfig(): AppConfig {
     sqlitePath: ":memory:",
     dnssecKeyPath: ":memory:",
     tldNameserverPath: ":memory:",
+    rdapRegistryPath,
     repositoryId: "ICANNRST",
     eppTlsRequireClientCert: false
   };
 }
 
-async function buildApp() {
+async function buildApp(rdapRegistryPath?: string) {
   const domains = new DomainService(new InMemoryDomainRepository());
   const hosts = new HostService(new InMemoryHostRepository());
   const contacts = new ContactService(new InMemoryContactRepository());
@@ -59,7 +63,7 @@ async function buildApp() {
     postalInfo: [{ type: "int", name: "John Doe", street: ["123 St"], city: "Dulles", cc: "US" }]
   });
 
-  return buildRdapApp(testConfig(), { domains, hosts, contacts });
+  return buildRdapApp(testConfig(rdapRegistryPath), { domains, hosts, contacts });
 }
 
 test("RDAP domain lookup returns an RFC 9083 domain object", async () => {
@@ -133,5 +137,25 @@ test("RDAP help is available", async () => {
     assert.ok(Array.isArray((response.json() as { notices: unknown[] }).notices));
   } finally {
     await app.close();
+  }
+});
+
+test("GET /registry.json publishes the RDAP registry dump", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "rdap-reg-"));
+  const app = await buildApp(join(tempDir, "registry.json"));
+
+  try {
+    const response = await app.inject({ method: "GET", url: "/registry.json" });
+    assert.equal(response.statusCode, 200);
+    const body = response.json() as {
+      registrar: { ianaId: number };
+      domains: Array<{ ldhName: string; dsData: Array<{ keyTag: number }> }>;
+    };
+    assert.equal(body.registrar.ianaId, 9999);
+    assert.equal(body.domains[0].ldhName, "example.melendez");
+    assert.equal(body.domains[0].dsData[0].keyTag, 1);
+  } finally {
+    await app.close();
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });

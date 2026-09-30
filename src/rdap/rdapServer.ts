@@ -13,6 +13,7 @@ import {
   rdapNameserver,
   rdapRegistrarEntity
 } from "./rdapMapper.js";
+import { buildRegistryExport, readRegistryExport, writeRegistryExport } from "./registryExport.js";
 
 const RDAP_CONTENT_TYPE = "application/rdap+json";
 
@@ -39,6 +40,22 @@ export async function buildRdapApp(config: AppConfig, services: RdapServices): P
 
   app.get("/help", async (request, reply) => {
     return rdap(reply, 200, rdapHelp(baseUrl(request)));
+  });
+
+  // Published dump for external RDAP loaders. Also available via Caddy at /rdap/registry.json.
+  app.get("/registry.json", async (_request, reply) => {
+    const existing = readRegistryExport(config.rdapRegistryPath);
+    if (existing) {
+      return reply.type("application/json; charset=utf-8").send(existing);
+    }
+
+    const document = buildRegistryExport({
+      domains: await services.domains.list(),
+      contacts: await services.contacts.list(),
+      hosts: await services.hosts.list()
+    });
+    writeRegistryExport(config.rdapRegistryPath, document);
+    return reply.type("application/json; charset=utf-8").send(document);
   });
 
   app.get<{ Params: { name: string } }>("/domain/:name", async (request, reply) => {

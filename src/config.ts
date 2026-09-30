@@ -36,6 +36,8 @@ const configSchema = z.object({
   sqlitePath: z.string().default("data/epp-testing-tool.sqlite"),
   dnssecKeyPath: z.string().default("data/dnssec-keys.json"),
   tldNameserverPath: z.string().default("data/tld-nameservers.json"),
+  /** Published RDAP dump (registry.json) regenerated with the signed zone. */
+  rdapRegistryPath: z.string().default("data/rdap/registry.json"),
   repositoryId: z.string().regex(/^\w{1,8}$/).default("ICANNRST"),
   eppTlsCertPath: z.string().optional(),
   eppTlsKeyPath: z.string().optional(),
@@ -66,6 +68,7 @@ export function loadConfig(env = process.env): AppConfig {
     sqlitePath: env.SQLITE_PATH,
     dnssecKeyPath: env.DNSSEC_KEY_PATH,
     tldNameserverPath: env.TLD_NAMESERVER_PATH,
+    rdapRegistryPath: env.RDAP_REGISTRY_PATH,
     repositoryId: env.EPP_REPOSITORY_ID,
     eppTlsCertPath: env.EPP_TLS_CERT,
     eppTlsKeyPath: env.EPP_TLS_KEY,

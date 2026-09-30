@@ -14,6 +14,7 @@ import { planBulkDomainSeed } from "../dns/bulkDomainSeed.js";
 import { generateMelendezZone } from "../dns/melendezZone.js";
 import type { DnsZoneOptions } from "../dns/types.js";
 import { TldNameserverStore, tldNameserverConfigSchema } from "../dns/tldNameservers.js";
+import { buildRegistryExport, writeRegistryExport } from "../rdap/registryExport.js";
 import { ensureDefaultRegistry } from "../registry/defaultRegistry.js";
 import { dashboardHtml } from "./dashboardHtml.js";
 
@@ -165,12 +166,20 @@ export async function buildControlApp(
 
   app.get("/dns/zone", async (request, reply) => {
     const query = dnsZoneQuerySchema.parse(request.query);
+    const domainList = await domains.list();
+    const hostList = extras?.hosts ? await extras.hosts.list() : [];
+    const contactList = extras?.contacts ? await extras.contacts.list() : [];
     const zone = generateMelendezZone(
-      await domains.list(),
+      domainList,
       query satisfies DnsZoneOptions,
       { keyPath: config.dnssecKeyPath },
-      extras?.hosts ? await extras.hosts.list() : [],
+      hostList,
       nameserverStore.load()
+    );
+    // Keep RDAP registry.json in lockstep with every zone regeneration.
+    writeRegistryExport(
+      config.rdapRegistryPath,
+      buildRegistryExport({ domains: domainList, contacts: contactList, hosts: hostList })
     );
     const response = reply.type("text/plain; charset=utf-8");
 
@@ -179,6 +188,22 @@ export async function buildControlApp(
     }
 
     return response.send(zone);
+  });
+
+  app.get("/dns/registry.json", async (_request, reply) => {
+    const domainList = await domains.list();
+    const hostList = extras?.hosts ? await extras.hosts.list() : [];
+    const contactList = extras?.contacts ? await extras.contacts.list() : [];
+    const document = buildRegistryExport({
+      domains: domainList,
+      contacts: contactList,
+      hosts: hostList
+    });
+    writeRegistryExport(config.rdapRegistryPath, document);
+    return reply
+      .type("application/json; charset=utf-8")
+      .header("content-disposition", 'attachment; filename="registry.json"')
+      .send(document);
   });
 
   app.post("/reset", async (request, reply) => {
