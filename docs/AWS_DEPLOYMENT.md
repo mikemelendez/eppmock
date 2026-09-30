@@ -266,6 +266,27 @@ Use `Generate keys` for normal operation. It reuses existing keys from `DNSSEC_K
 `Renew keys` only when you intentionally want to rotate the ZSK and refresh the persisted key
 metadata. Back up the `epp_data` volume before renewal.
 
+For a large delegated zone (RST DNSSEC Operations stress), skip the dashboard and use curl
+after this build is deployed (same Basic auth as Reset):
+
+```bash
+# 1) Seed ~10k delegated names (keeps nic/miguel/example) — usually <1s
+curl -u "$RESET_HTTP_USER:$RESET_HTTP_PASSWORD" \
+  -H 'content-type: application/json' \
+  -d '{"count":10000}' \
+  https://eppmock.melendez.mx/admin/domains/seed-bulk
+
+# 2) Download the signed zone (~30–60s for 10k names)
+curl -o melendez.zone \
+  'https://eppmock.melendez.mx/dns/zone?dnssec=true&download=true'
+```
+
+Local/dev without HTTP (from a git checkout with Node):
+
+```bash
+npx tsx scripts/seed-bulk-domains.ts --count 10000 --zone ./melendez.zone
+```
+
 ## Public URLs
 
 Dashboard:

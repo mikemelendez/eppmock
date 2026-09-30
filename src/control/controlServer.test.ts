@@ -115,6 +115,88 @@ test("GET/PUT /dns/nameservers updates glue and SOA used by /dns/zone", async ()
   }
 });
 
+test("POST /admin/domains/seed-bulk keeps defaults and inserts generated domains", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "epp-seed-"));
+  const domains = new DomainService(new InMemoryDomainRepository());
+  const now = new Date().toISOString();
+  const later = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+  await domains.reset([
+    {
+      name: "nic.melendez",
+      registrarId: "melendez-admin",
+      creatorId: "melendez-admin",
+      roid: "D1-ICANNRST",
+      periodYears: 1,
+      statuses: ["ok"],
+      nameservers: ["ns1.nic.melendez"],
+      contacts: [],
+      dsRecords: [],
+      createdAt: now,
+      expiresAt: later
+    },
+    {
+      name: "scratch.melendez",
+      registrarId: "melendez-admin",
+      creatorId: "melendez-admin",
+      roid: "D2-ICANNRST",
+      periodYears: 1,
+      statuses: ["ok"],
+      nameservers: ["ns1.scratch.melendez"],
+      contacts: [],
+      dsRecords: [],
+      createdAt: now,
+      expiresAt: later
+    }
+  ]);
+
+  const app = await buildControlApp(
+    testConfig(join(tempDir, "dnssec-keys.json"), {
+      tldNameserverPath: join(tempDir, "tld-nameservers.json")
+    }),
+    domains,
+    new CommandLogRepository()
+  );
+  const auth = `Basic ${Buffer.from("admin:test-reset-password").toString("base64")}`;
+
+  try {
+    const unauthorized = await app.inject({
+      method: "POST",
+      url: "/admin/domains/seed-bulk",
+      payload: { count: 10 }
+    });
+    assert.equal(unauthorized.statusCode, 401);
+
+    const seeded = await app.inject({
+      method: "POST",
+      url: "/admin/domains/seed-bulk",
+      headers: { authorization: auth, "content-type": "application/json" },
+      payload: { count: 10 }
+    });
+    assert.equal(seeded.statusCode, 200);
+    assert.deepEqual(seeded.json(), {
+      ok: true,
+      kept: 1,
+      generated: 10,
+      total: 11
+    });
+
+    const listed = await domains.list();
+    assert.equal(listed.length, 11);
+    assert.ok(listed.some((domain) => domain.name === "nic.melendez"));
+    assert.ok(!listed.some((domain) => domain.name === "scratch.melendez"));
+    assert.ok(listed.some((domain) => domain.name === "d00001.melendez"));
+    assert.ok(listed.some((domain) => domain.name === "d00010.melendez"));
+
+    const zone = await app.inject({ method: "GET", url: "/dns/zone?dnssec=true" });
+    assert.equal(zone.statusCode, 200);
+    assert.match(zone.body, /d00001 IN NS ns1\.d00001\.melendez\./);
+    assert.match(zone.body, /d00001 IN DS \d+ 13 2 [A-F0-9]+/);
+  } finally {
+    await app.close();
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("hello EPP request returns one greeting frame without auto login", async () => {
   const fakeEpp = await startFakeGreetingServer();
   const domains = new DomainService(new InMemoryDomainRepository());

@@ -10,6 +10,7 @@ import type { HostService } from "../host/hostService.js";
 import { allocateRoid } from "../epp/roid.js";
 import type { CommandLogRepository } from "../epp/commandLogRepository.js";
 import { sendEppRequest } from "../epp/eppClient.js";
+import { planBulkDomainSeed } from "../dns/bulkDomainSeed.js";
 import { generateMelendezZone } from "../dns/melendezZone.js";
 import type { DnsZoneOptions } from "../dns/types.js";
 import { TldNameserverStore, tldNameserverConfigSchema } from "../dns/tldNameservers.js";
@@ -64,6 +65,12 @@ const domainFixtureSchema = z.object({
 
 const resetBodySchema = z.object({
   domains: z.array(domainFixtureSchema).default([])
+});
+
+const seedBulkBodySchema = z.object({
+  count: z.number().int().min(1).max(50_000).default(10_000),
+  prefix: z.string().min(1).max(32).optional(),
+  registrarId: z.string().min(1).optional()
 });
 
 const eppRequestBodySchema = z.object({
@@ -215,6 +222,33 @@ export async function buildControlApp(
       });
     }
     return { ok: true };
+  });
+
+  app.post("/admin/domains/seed-bulk", async (request, reply) => {
+    if (!isAuthorizedReset(request.headers.authorization, config)) {
+      return unauthorized(reply);
+    }
+
+    const body = seedBulkBodySchema.parse(request.body ?? {});
+    const plan = planBulkDomainSeed(await domains.list(), body);
+    await domains.reset(plan.all);
+    commandLog.reset();
+    if (extras?.contacts && extras.hosts) {
+      await ensureDefaultRegistry({
+        domains,
+        contacts: extras.contacts,
+        hosts: extras.hosts,
+        nameserverConfig: nameserverStore.load()
+      });
+    }
+
+    const total = (await domains.list()).length;
+    return {
+      ok: true,
+      kept: plan.keep.length,
+      generated: plan.generated.length,
+      total
+    };
   });
 
   app.get("/commands", async (request) => {
