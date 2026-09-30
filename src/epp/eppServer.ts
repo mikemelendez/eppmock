@@ -52,9 +52,10 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
   const onConnection = (socket: net.Socket): void => {
     const presented = peerCertificateFingerprint(socket);
 
-    // RST epp-03 "strange"/unknown client certs: refuse the TLS session itself when
-    // fingerprints are configured. Only exact allowlisted leaf certs may proceed.
-    // Plaintext dashboard listener skips this check.
+    // RST / operator policy: when fingerprints are configured, unknown or missing
+    // peer leaf certs are destroyed before the greeting. Plaintext dashboard skips this.
+    // Note: OpenSSL drops unrelated "extraneous" chain certs before Node sees them, so
+    // identity is enforced on the leaf fingerprint only.
     if (
       resolved.tls &&
       !clientCertificateAllowed(presented, allowedClientCerts, config.eppTlsRequireClientCert)
@@ -92,8 +93,6 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
           key: readFileSync(config.eppTlsKeyPath as string),
           ca: config.eppTlsCaPath ? readFileSync(config.eppTlsCaPath) : undefined,
           requestCert: config.eppTlsRequireClientCert,
-          // Keep false so RFC 8446 / epp-01 extraneous + disordered client chains still
-          // complete the handshake; identity is enforced via the fingerprint allowlist.
           rejectUnauthorized: false,
           minVersion: "TLSv1.2",
           maxVersion: "TLSv1.3",
