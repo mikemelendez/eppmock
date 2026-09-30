@@ -266,8 +266,21 @@ Use `Generate keys` for normal operation. It reuses existing keys from `DNSSEC_K
 `Renew keys` only when you intentionally want to rotate the ZSK and refresh the persisted key
 metadata. Back up the `epp_data` volume before renewal.
 
-For a large delegated zone (RST DNSSEC Operations stress), use the dashboard **Seed 10k**
-button or `POST /admin/domains/seed-bulk` with the same HTTP Basic credentials as Reset:
+For a large delegated zone (RST DNSSEC Operations stress), prefer the one-shot CLI on the
+host (fastest; no dashboard):
+
+```bash
+cd /opt/epp-testing-tool
+docker compose -f deploy/docker-compose.aws.yml exec app \
+  npx tsx scripts/seed-bulk-domains.ts \
+  --count 10000 \
+  --sqlite /app/data/epp-testing-tool.sqlite \
+  --keys /app/data/dnssec-keys.json \
+  --nameservers /app/data/tld-nameservers.json \
+  --zone /app/data/melendez.zone
+```
+
+Or, after deploy, a single authenticated POST (same Basic auth as Reset):
 
 ```bash
 curl -u "$RESET_HTTP_USER:$RESET_HTTP_PASSWORD" \
@@ -276,9 +289,9 @@ curl -u "$RESET_HTTP_USER:$RESET_HTTP_PASSWORD" \
   https://eppmock.melendez.mx/admin/domains/seed-bulk
 ```
 
-That keeps `nic` / `miguel` / `example`, inserts `d00001.melendez`…`d10000.melendez` with
-dual NS and DS (alg 13 / digest type 2), then Generate/Download the signed zone and load it
-on the authoritative DNS.
+Both keep `nic` / `miguel` / `example` and insert `d00001.melendez`…`d10000.melendez` with
+dual NS and DS (alg 13 / digest type 2). Signing ~10k names takes on the order of tens of
+seconds; copy `/app/data/melendez.zone` (or Download from the dashboard) onto authoritative DNS.
 
 ## Public URLs
 
