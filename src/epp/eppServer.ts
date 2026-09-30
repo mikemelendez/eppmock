@@ -47,7 +47,22 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
     tls: options?.tls ?? isTlsEnabled(config)
   };
 
+  const allowedClientCerts = allowedClientCertFingerprints(config);
+
   const onConnection = (socket: net.Socket): void => {
+    const presented = peerCertificateFingerprint(socket);
+
+    // RST epp-03 "strange"/unknown client certs: refuse the TLS session itself when
+    // fingerprints are configured. Only exact allowlisted leaf certs may proceed.
+    // Plaintext dashboard listener skips this check.
+    if (
+      resolved.tls &&
+      !clientCertificateAllowed(presented, allowedClientCerts, config.eppTlsRequireClientCert)
+    ) {
+      socket.destroy();
+      return;
+    }
+
     const decoder = new EppFrameDecoder();
     const session: EppSession = {
       id: randomUUID(),
@@ -55,7 +70,7 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
       tls: resolved.tls,
       connectedAt: new Date(),
       lastCommandAt: new Date(),
-      clientCertSha256: peerCertificateFingerprint(socket)
+      clientCertSha256: presented
     };
 
     socket.write(encodeFrame(greeting(config.greetingServerId)));
@@ -77,6 +92,8 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
           key: readFileSync(config.eppTlsKeyPath as string),
           ca: config.eppTlsCaPath ? readFileSync(config.eppTlsCaPath) : undefined,
           requestCert: config.eppTlsRequireClientCert,
+          // Keep false so RFC 8446 / epp-01 extraneous + disordered client chains still
+          // complete the handshake; identity is enforced via the fingerprint allowlist.
           rejectUnauthorized: false,
           minVersion: "TLSv1.2",
           maxVersion: "TLSv1.3",
@@ -118,7 +135,51 @@ function peerCertificateFingerprint(socket: net.Socket): string | undefined {
     return undefined;
   }
 
-  return String(certificate.fingerprint256).replaceAll(":", "").toLowerCase();
+  return normalizeFingerprint(String(certificate.fingerprint256));
+}
+
+/** SHA-256 fingerprints configured on registrar accounts (allowlist for mTLS). */
+export function allowedClientCertFingerprints(config: Pick<AppConfig, "authUsers">): Set<string> {
+  const fingerprints = new Set<string>();
+
+  for (const user of config.authUsers) {
+    const fingerprint = normalizeFingerprint(user.clientCertSha256);
+
+    if (fingerprint) {
+      fingerprints.add(fingerprint);
+    }
+  }
+
+  return fingerprints;
+}
+
+/**
+ * When an allowlist is configured (and/or client certs are required), only identical
+ * allowlisted leaf certificates may keep the connection. Unknown/"strange" certs and
+ * missing certs are rejected at the TLS session layer.
+ */
+export function clientCertificateAllowed(
+  presented: string | undefined,
+  allowed: Set<string>,
+  requireClientCert: boolean
+): boolean {
+  if (allowed.size === 0) {
+    return !(requireClientCert && !presented);
+  }
+
+  if (!presented) {
+    return false;
+  }
+
+  return allowed.has(normalizeFingerprint(presented) ?? "");
+}
+
+function normalizeFingerprint(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return value.replaceAll(":", "").replaceAll(" ", "").toLowerCase();
 }
 
 async function handleChunk(
