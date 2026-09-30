@@ -685,7 +685,7 @@ export function dashboardHtml(): string {
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-db"/></svg></span><span class="help-title">Registry State and CSV</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-                    <div class="help-content"><p>The Registry State card shows persisted domains and recent EPP commands. Download CSV exports the full domain table for verification, including statuses, nameservers, contacts, authInfo, DS records, dates, and transfer state. The registry always seeds nic.melendez, miguel.melendez, and example.melendez with contacts, dual-stack glue, DS records, and serverDeleteProhibited.</p></div>
+                    <div class="help-content"><p>The Registry State card shows persisted domains and recent EPP commands. Download CSV exports the full domain table for verification, including statuses, nameservers, contacts, authInfo, DS records, dates, and transfer state. The registry always seeds nic.melendez, miguel.melendez, and example.melendez with contacts, dual-stack glue, DS records, and serverDeleteProhibited. Seed 10k asks for the same HTTP Basic credentials as Reset, keeps those three defaults, and replaces other names with d00001.melendez…d10000.melendez (each with dual NS and a DS record) for DNSSEC Operations stress. Then Generate/Download the zone.</p></div>
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-globe"/></svg></span><span class="help-title">DNS Zone Generator</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
@@ -782,6 +782,7 @@ export function dashboardHtml(): string {
               <p class="muted">Current domains and latest commands.</p>
             </div>
             <div class="actions" style="margin-top: 0">
+              <button id="seedBulk" type="button" title="Replace non-default domains with 10,000 DNSSEC-ops names">Seed 10k</button>
               <button id="downloadCsv">Download CSV</button>
               <button id="refresh">Refresh</button>
             </div>
@@ -1341,14 +1342,58 @@ export function dashboardHtml(): string {
       ]);
 
       const domainPayload = await domainResponse.json();
-      domains.innerHTML = domainPayload.length
-        ? domainPayload.map((domain) => \`<div class="pill-row"><span>\${escapeHtml(domain.name)}</span><span>\${escapeHtml(domain.statuses.join(", "))}\${domain.dsRecords?.length ? " · DS " + domain.dsRecords.length : ""}</span></div>\`).join("")
-        : \`<div class="pill-row"><span>No domains</span><span>empty registry</span></div>\`;
+      const previewLimit = 40;
+      if (!domainPayload.length) {
+        domains.innerHTML = \`<div class="pill-row"><span>No domains</span><span>empty registry</span></div>\`;
+      } else {
+        const preview = domainPayload.slice(0, previewLimit);
+        const rows = preview.map((domain) => \`<div class="pill-row"><span>\${escapeHtml(domain.name)}</span><span>\${escapeHtml(domain.statuses.join(", "))}\${domain.dsRecords?.length ? " · DS " + domain.dsRecords.length : ""}</span></div>\`);
+        if (domainPayload.length > previewLimit) {
+          rows.unshift(\`<div class="pill-row"><span>\${domainPayload.length} domains</span><span>showing first \${previewLimit}</span></div>\`);
+          rows.push(\`<div class="pill-row"><span>…</span><span>\${domainPayload.length - previewLimit} more (use Download CSV)</span></div>\`);
+        }
+        domains.innerHTML = rows.join("");
+      }
 
       const commandPayload = await commandResponse.json();
       commands.innerHTML = commandPayload.length
         ? commandPayload.map((command) => \`<div class="pill-row"><span>\${escapeHtml(command.commandName)}</span><span>\${formatDateTime(command.createdAt)}</span></div>\`).join("")
         : \`<div class="pill-row"><span>No commands</span><span>no activity</span></div>\`;
+    }
+
+    async function seedBulkDomains() {
+      if (!confirm("Replace non-default domains with 10,000 DNSSEC-ops names (d00001…d10000.melendez)? Keeps nic/miguel/example.")) {
+        return;
+      }
+      const user = prompt("Admin HTTP user (same as Reset)");
+      if (!user) return;
+      const password = prompt("Admin HTTP password");
+      if (password === null) return;
+
+      const button = $("seedBulk");
+      button.disabled = true;
+      try {
+        const response = await fetch("/admin/domains/seed-bulk", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "authorization": \`Basic \${btoa(\`\${user}:\${password}\`)}\`
+          },
+          body: JSON.stringify({ count: 10000 })
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({ message: "Bulk seed failed" }));
+          renderError(new Error(payload.message || "Bulk seed failed"));
+          return;
+        }
+
+        const result = await response.json();
+        responses.innerHTML = \`<div class="pill-row"><span>Bulk seed complete</span><span>\${result.generated} generated · kept \${result.kept} · total \${result.total}</span></div>\`;
+        await refreshState();
+      } finally {
+        button.disabled = false;
+      }
     }
 
     function formatDateTime(value) {
@@ -1520,6 +1565,7 @@ export function dashboardHtml(): string {
     $("send").addEventListener("click", sendRequest);
     $("format").addEventListener("click", () => { xml.value = prettyXml(xml.value); });
     $("refresh").addEventListener("click", refreshState);
+    $("seedBulk").addEventListener("click", seedBulkDomains);
     $("downloadCsv").addEventListener("click", () => {
       window.location.href = "/domains.csv";
     });
