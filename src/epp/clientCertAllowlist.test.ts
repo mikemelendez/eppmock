@@ -12,12 +12,12 @@ test("clientCertificateAllowed rejects unknown and missing certs when allowliste
   assert.equal(clientCertificateAllowed(undefined, allowed, false), false);
 });
 
-test("clientCertificateAllowed is open when no fingerprints are configured", () => {
+test("clientCertificateAllowed fails closed when certs are required but no fingerprints exist", () => {
   const empty = new Set<string>();
   assert.equal(clientCertificateAllowed(undefined, empty, false), true);
   assert.equal(clientCertificateAllowed("aa".repeat(32), empty, false), true);
   assert.equal(clientCertificateAllowed(undefined, empty, true), false);
-  assert.equal(clientCertificateAllowed("aa".repeat(32), empty, true), true);
+  assert.equal(clientCertificateAllowed("aa".repeat(32), empty, true), false);
 });
 
 test("allowedClientCertFingerprints collects unique normalized hashes", () => {

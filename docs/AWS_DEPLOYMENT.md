@@ -76,7 +76,7 @@ openssl s_client -connect eppmock.melendez.mx:700 -tls1_1
 
 ### 4. RST registrar certificates (epp-03)
 
-ICANN gives you `epp.client01Certificate` / `epp.client02Certificate` (or CSRs). Put each SHA-256 fingerprint on `melendez-registrar` and `melendez-tester` in the GitHub `EPP_USERS` secret (those are `epp.clid01` / `epp.clid02`):
+ICANN gives you `epp.client01Certificate` / `epp.client02Certificate` (or CSRs). Put each SHA-256 fingerprint on `melendez-registrar` and `melendez-tester` in the GitHub `EPP_USERS` secret (those are `epp.clid01` / `epp.clid02`). Until those fingerprints are set, public TLS on 700 **fail-closes** when `EPP_TLS_REQUIRE_CLIENT_CERT=true` (every client certificate is dropped before the greeting):
 
 ```bash
 chmod +x deploy/fingerprint-cert.sh

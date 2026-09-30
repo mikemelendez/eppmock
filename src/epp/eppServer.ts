@@ -154,9 +154,10 @@ export function allowedClientCertFingerprints(config: Pick<AppConfig, "authUsers
 }
 
 /**
- * When an allowlist is configured (and/or client certs are required), only identical
- * allowlisted leaf certificates may keep the connection. Unknown/"strange" certs and
- * missing certs are rejected at the TLS session layer.
+ * mTLS leaf policy for the public TLS listener:
+ * - No fingerprints + client certs required → fail closed (reject missing and any cert).
+ * - No fingerprints + client certs optional → open (local/dev).
+ * - Fingerprints configured → only exact allowlisted leaf fingerprints may proceed.
  */
 export function clientCertificateAllowed(
   presented: string | undefined,
@@ -164,7 +165,10 @@ export function clientCertificateAllowed(
   requireClientCert: boolean
 ): boolean {
   if (allowed.size === 0) {
-    return !(requireClientCert && !presented);
+    // Production sets EPP_TLS_REQUIRE_CLIENT_CERT=true. Without fingerprints every
+    // peer cert used to be accepted; fail closed so strange/extraneous probes die
+    // until clientCertSha256 entries are configured.
+    return !requireClientCert;
   }
 
   if (!presented) {
