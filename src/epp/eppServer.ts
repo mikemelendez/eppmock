@@ -49,6 +49,9 @@ export const RFC_9325_TLS12_CIPHERS = [
   "ECDHE-RSA-CHACHA20-POLY1305"
 ].join(":");
 
+/** TEMPORARY DEBUG: accept only the first N public TLS connects, then drop the rest. */
+const TEMP_DEBUG_TLS_ACCEPT_LIMIT = 3;
+
 export function startEppServer(config: AppConfig, router: EppRouter, options?: Partial<EppServerOptions>): net.Server {
   // options.tls=false is how the dashboard listener stays plaintext while EPP_PORT is TLS.
   const resolved: EppServerOptions = {
@@ -58,6 +61,9 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
     exitOnError: options?.exitOnError ?? true,
     tls: options?.tls ?? isTlsEnabled(config)
   };
+
+  // TEMPORARY DEBUG counter — reset on process restart. Remove with TEMP_DEBUG_TLS_ACCEPT_LIMIT.
+  let tlsConnectionsSeen = 0;
 
   const onConnection = (socket: net.Socket): void => {
     const sessionId = randomUUID();
@@ -69,6 +75,28 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
         sessionId,
         remote: formatRemote(socket)
       });
+
+      // TEMPORARY DEBUG: only enforce on the production listener (exitOnError default true).
+      // Loopback is ignored so local health checks do not consume the budget.
+      if (resolved.exitOnError && !isLoopbackRemote(socket)) {
+        tlsConnectionsSeen += 1;
+        const connectionNumber = tlsConnectionsSeen;
+
+        if (connectionNumber > TEMP_DEBUG_TLS_ACCEPT_LIMIT) {
+          console.log(
+            `${resolved.label} TEMPORARY DEBUG rejecting TLS connection ${connectionNumber}` +
+              ` session=${sessionId} remote=${formatRemote(socket)}` +
+              ` (accept limit ${TEMP_DEBUG_TLS_ACCEPT_LIMIT})`
+          );
+          socket.destroy();
+          return;
+        }
+
+        console.log(
+          `${resolved.label} TEMPORARY DEBUG accepting TLS connection ${connectionNumber}/${TEMP_DEBUG_TLS_ACCEPT_LIMIT}` +
+            ` session=${sessionId} remote=${formatRemote(socket)}`
+        );
+      }
     }
 
     const decoder = new EppFrameDecoder();
@@ -125,6 +153,11 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
   server.listen(resolved.port, resolved.host, () => {
     const mode = resolved.tls ? "TLS" : "TCP";
     console.log(`${resolved.label} listening on ${resolved.host}:${resolved.port} (${mode})`);
+    if (resolved.tls && resolved.exitOnError) {
+      console.log(
+        `${resolved.label} TEMPORARY DEBUG accepting only the first ${TEMP_DEBUG_TLS_ACCEPT_LIMIT} TLS connections`
+      );
+    }
   });
 
   return server;
@@ -228,6 +261,11 @@ function formatRemote(socket: net.Socket): string {
   const host = socket.remoteAddress ?? "?";
   const port = socket.remotePort ?? "?";
   return `${host}:${port}`;
+}
+
+function isLoopbackRemote(socket: net.Socket): boolean {
+  const host = socket.remoteAddress ?? "";
+  return host === "127.0.0.1" || host === "::1" || host === "::ffff:127.0.0.1";
 }
 
 function formatCertName(name: tls.PeerCertificate["subject"] | undefined): string {
