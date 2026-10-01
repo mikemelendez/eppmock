@@ -149,9 +149,34 @@ export class InMemoryDomainRepository implements DomainRepository {
         requestedBy: domain.transfer?.requestedBy ?? registrarId,
         requestedAt: domain.transfer?.requestedAt ?? now,
         updatedAt: now,
-        periodYears: transferPeriod
+        periodYears: transferPeriod,
+        losingRegistrar: domain.transfer?.losingRegistrar ?? domain.registrarId
       },
       updatedAt: now
+    };
+
+    this.domains.set(normalizedName, updated);
+    return updated;
+  }
+
+  async setSponsor(name: string, registrarId: string): Promise<DomainRecord | null> {
+    const normalizedName = normalizeDomainName(name);
+    const domain = this.domains.get(normalizedName);
+
+    if (!domain) {
+      return null;
+    }
+
+    if (domain.registrarId === registrarId && !domain.transfer) {
+      return domain;
+    }
+
+    const updated: DomainRecord = {
+      ...domain,
+      registrarId,
+      statuses: normalizeStatuses(domain.statuses.filter((status) => status !== "pendingTransfer")),
+      transfer: undefined,
+      updatedAt: new Date().toISOString()
     };
 
     this.domains.set(normalizedName, updated);

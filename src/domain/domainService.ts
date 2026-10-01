@@ -280,6 +280,11 @@ export class DomainService {
     await this.repository.replaceHostName(oldName, newName);
   }
 
+  /** Restore a seeded domain to the registry registrar after a test transfer or create. */
+  async reclaimSponsor(name: string, registrarId: string): Promise<void> {
+    await this.repository.setSponsor(this.lookupName(name), registrarId);
+  }
+
   async list(): Promise<DomainRecord[]> {
     const domains = await this.repository.list();
     return domains.filter((domain) => {

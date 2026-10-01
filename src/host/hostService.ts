@@ -130,6 +130,11 @@ export class HostService {
     return this.repository.list();
   }
 
+  /** Restore a seeded glue host to the registry registrar. */
+  async reclaimSponsor(name: string, registrarId: string): Promise<void> {
+    await this.repository.setSponsor(this.canonical(name), registrarId);
+  }
+
   reset(records?: HostRecord[]): Promise<void> {
     return this.repository.reset(records);
   }
@@ -208,8 +213,8 @@ export class HostService {
   }
 
   private superordinateDomain(hostName: string): string | undefined {
-    const tld = this.registryTld.toLowerCase();
-    const labels = hostName.toLowerCase().split(".");
+    const tld = this.registryTld.replace(/^\.+|\.+$/g, "").toLowerCase();
+    const labels = hostName.toLowerCase().replace(/\.$/, "").split(".");
 
     if (labels.length < 3 || labels.at(-1) !== tld) {
       return undefined;

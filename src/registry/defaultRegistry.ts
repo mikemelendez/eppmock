@@ -65,6 +65,12 @@ export async function ensureDefaultRegistry(services: DefaultRegistryServices): 
 
   for (const spec of DEFAULT_DOMAINS) {
     await ensureContact(services.contacts, spec);
+    const current = await services.domains.findByName(spec.name);
+
+    if (current && current.registrarId !== REGISTRAR) {
+      await services.domains.reclaimSponsor(spec.name, REGISTRAR);
+    }
+
     await services.domains.ensureRegistered({
       name: spec.name,
       registrarId: REGISTRAR,
@@ -162,6 +168,10 @@ async function ensureHost(
     { ip: nameserver.aaaa, version: "v6" }
   ];
   const existing = await hosts.findByName(name);
+
+  if (existing && existing.registrarId !== REGISTRAR) {
+    await hosts.reclaimSponsor(name, REGISTRAR);
+  }
 
   if (!existing) {
     await hosts.create({

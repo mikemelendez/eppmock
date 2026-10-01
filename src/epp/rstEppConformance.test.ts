@@ -398,6 +398,9 @@ test("epp-14/15/16/18/19/21 domain lifecycle with host objects, RGP, transfer, a
     ctx("melendez-tester")
   );
   assert.equal(resultCode(transferOk), "1000");
+  assert.match(transferOk, /<domain:trStatus>pending<\/domain:trStatus>/);
+  assert.match(transferOk, /<domain:acID>melendez-registrar<\/domain:acID>/);
+  assert.match(transferOk, /<domain:reID>melendez-tester<\/domain:reID>/);
   assert.ok((await domains.findByName("lifecycle.melendez"))?.statuses.includes("pendingTransfer"));
 
   const approve = await domainHandler.handle(
@@ -407,6 +410,9 @@ test("epp-14/15/16/18/19/21 domain lifecycle with host objects, RGP, transfer, a
     ctx()
   );
   assert.equal(resultCode(approve), "1000");
+  assert.match(approve, /<domain:trStatus>clientApproved<\/domain:trStatus>/);
+  assert.doesNotMatch(approve, /<domain:trStatus>approved<\/domain:trStatus>/);
+  assert.match(approve, /<domain:acID>melendez-registrar<\/domain:acID>/);
   const transferred = await domains.findByName("lifecycle.melendez");
   assert.equal(transferred?.registrarId, "melendez-tester");
   assert.equal(transferred?.rgpStatus, "transferPeriod");
@@ -651,6 +657,8 @@ test("epp-20 transfer reject leaves the original sponsor", async () => {
     ctx()
   );
   assert.equal(resultCode(rejected), "1000");
+  assert.match(rejected, /<domain:trStatus>clientRejected<\/domain:trStatus>/);
+  assert.doesNotMatch(rejected, /<domain:trStatus>rejected<\/domain:trStatus>/);
   const domain = await domains.findByName("reject.melendez");
   assert.equal(domain?.registrarId, "melendez-registrar");
   assert.ok(!domain?.statuses.includes("pendingTransfer"));
@@ -698,6 +706,17 @@ test("epp-06 check of a provisioned overlong contact id is unavailable", async (
   );
   assert.equal(resultCode(response), "1000");
   assert.match(response, /<contact:id avail="0">melendez-contact1<\/contact:id>/);
+
+  const mixed = await contactHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><check><contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>toolongcontactid1</contact:id><contact:id>melendez-contact1</contact:id><contact:id>freeid99</contact:id></contact:check></check></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(mixed), "1000");
+  assert.match(mixed, /<contact:id avail="0">melendez-contact1<\/contact:id>/);
+  assert.match(mixed, /<contact:id avail="1">freeid99<\/contact:id>/);
+  assert.doesNotMatch(mixed, /toolongcontactid1/);
 });
 
 test("epp-09 duplicate contact status add and rem of an absent status are 2304", async () => {
@@ -819,17 +838,14 @@ test("epp-19 info orders exDate before trDate and cancel clears pendingTransfer"
   const exDateAt = info.indexOf("<domain:exDate>");
   const trDateAt = info.indexOf("<domain:trDate>");
   assert.ok(exDateAt > 0 && trDateAt > exDateAt);
-  assert.equal(
-    resultCode(
-      await domainHandler.handle(
-        parseEppXml(
-          `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><transfer op="cancel"><domain:transfer xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>transferord.melendez</domain:name></domain:transfer></transfer></command></epp>`
-        ),
-        ctx("melendez-tester")
-      )
+  const cancel = await domainHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><transfer op="cancel"><domain:transfer xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>transferord.melendez</domain:name></domain:transfer></transfer></command></epp>`
     ),
-    "1000"
+    ctx("melendez-tester")
   );
+  assert.equal(resultCode(cancel), "1000");
+  assert.match(cancel, /<domain:trStatus>clientCancelled<\/domain:trStatus>/);
 });
 
 test("epp-23 rename into another registrar domain is 2201 and external rename drops glue", async () => {
