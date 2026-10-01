@@ -13,6 +13,13 @@ import {
 
 export const DEFAULT_REGISTRY_DOMAIN_NAMES = ["nic.melendez", "miguel.melendez", "example.melendez"] as const;
 
+/**
+ * Schema-valid (clIDType 3–16) sample contacts for RST `epp.registeredContacts`.
+ * Do not use names like `melendez-contact1` (17 chars) — check must return 1000/avail=0
+ * with an echoable id, not 2005.
+ */
+export const DEFAULT_RST_REGISTERED_CONTACT_IDS = ["melendez-ct1", "melendez-ct2"] as const;
+
 const REGISTRAR = "melendez-admin";
 
 interface DefaultDomainSpec {
@@ -62,6 +69,8 @@ export interface DefaultRegistryServices {
 /** Create nic / miguel / example with contacts, in-bailiwick glue, and DS if missing. */
 export async function ensureDefaultRegistry(services: DefaultRegistryServices): Promise<void> {
   const nameserverConfig = services.nameserverConfig ?? DEFAULT_TLD_NAMESERVER_CONFIG;
+
+  await ensureRstRegisteredContacts(services.contacts);
 
   for (const spec of DEFAULT_DOMAINS) {
     await ensureContact(services.contacts, spec);
@@ -149,6 +158,24 @@ async function ensureContact(contacts: ContactService, spec: DefaultDomainSpec):
     voice: spec.voice,
     authInfo: "contact-secret"
   });
+}
+
+/** Seed short contact ids for epp-06 `epp.registeredContacts` (avail=0). */
+async function ensureRstRegisteredContacts(contacts: ContactService): Promise<void> {
+  for (const id of DEFAULT_RST_REGISTERED_CONTACT_IDS) {
+    if (await contacts.findById(id)) {
+      continue;
+    }
+
+    await contacts.create({
+      id,
+      registrarId: REGISTRAR,
+      postalInfo: [postal("int", "RST Sample Contact", "Monterrey", "NL", "64000", "MX", ["Av. RST 1"])],
+      email: `${id}@nic.melendez`,
+      voice: "+52.8180000099",
+      authInfo: "contact-secret"
+    });
+  }
 }
 
 async function ensureHost(

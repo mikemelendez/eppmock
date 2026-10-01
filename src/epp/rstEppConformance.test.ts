@@ -689,34 +689,50 @@ test("epp-23 rename of a linked external host used by another registrar is 2305"
   assert.equal(resultCode(rename), "2305");
 });
 
-test("epp-06 check of a provisioned overlong contact id is unavailable", async () => {
+test("epp-06 registered contacts return avail=0; unknown overlong ids are omitted", async () => {
   const repository = new InMemoryContactRepository();
   await repository.create({
-    id: "melendez-contact1",
+    id: "melendez-ct1",
     registrarId: "melendez-admin",
     postalInfo: [{ type: "int", name: "RST", street: [], city: "LA", cc: "US" }],
     email: "rst@example.net"
   });
+  // Legacy overlong id that somehow exists in storage: still reported avail=0 (not echoed as createable).
+  await repository.create({
+    id: "toolongcontactidxx",
+    registrarId: "melendez-admin",
+    postalInfo: [{ type: "int", name: "Legacy", street: [], city: "LA", cc: "US" }],
+    email: "legacy@example.net"
+  });
   const contactHandler = new ContactCommandHandler(new ContactService(repository));
   const response = await contactHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><check><contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>melendez-ct1</contact:id></contact:check></check></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(response), "1000");
+  assert.match(response, /<contact:id avail="0">melendez-ct1<\/contact:id>/);
+
+  const mixed = await contactHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><check><contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>toolongcontactid1</contact:id><contact:id>melendez-ct1</contact:id><contact:id>freeid99</contact:id></contact:check></check></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(mixed), "1000");
+  assert.match(mixed, /<contact:id avail="0">melendez-ct1<\/contact:id>/);
+  assert.match(mixed, /<contact:id avail="1">freeid99<\/contact:id>/);
+  assert.doesNotMatch(mixed, /toolongcontactid1/);
+
+  // Unknown overlong id (e.g. misconfigured epp.registeredContacts) → 2005, not avail=0.
+  const unknownOverlong = await contactHandler.handle(
     parseEppXml(
       `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><check><contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>melendez-contact1</contact:id></contact:check></check></command></epp>`
     ),
     ctx()
   );
-  assert.equal(resultCode(response), "1000");
-  assert.match(response, /<contact:id avail="0">melendez-contact1<\/contact:id>/);
-
-  const mixed = await contactHandler.handle(
-    parseEppXml(
-      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><check><contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>toolongcontactid1</contact:id><contact:id>melendez-contact1</contact:id><contact:id>freeid99</contact:id></contact:check></check></command></epp>`
-    ),
-    ctx()
-  );
-  assert.equal(resultCode(mixed), "1000");
-  assert.match(mixed, /<contact:id avail="0">melendez-contact1<\/contact:id>/);
-  assert.match(mixed, /<contact:id avail="1">freeid99<\/contact:id>/);
-  assert.doesNotMatch(mixed, /toolongcontactid1/);
+  assert.equal(resultCode(unknownOverlong), "2005");
 });
 
 test("epp-09 duplicate contact status add and rem of an absent status are 2304", async () => {
