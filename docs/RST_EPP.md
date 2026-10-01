@@ -19,9 +19,9 @@ Use these RST input parameters:
 | `general.registryDataModel` | `maximum` |
 | `dns.gluePolicy` | `narrow` (only the superordinate sponsor may create in-bailiwick hosts, and those hosts require glue) |
 | `epp.requiredContactTypes` | `[]` (registrant is required; admin/tech/billing are optional) |
-| `epp.secDNSInterfaces` | `dsData` |
+| `epp.secDNSInterfaces` | `keyData` or `dsData` (both supported; `keyData` is converted to SHA-256 DS) |
 | `epp.supportedContactPostalInfoTypes` | `both` |
-| `epp.clid01` / `epp.clid02` | `melendez-registrar` / `melendez-tester` (or any two distinct `EPP_USERS` clIDs; each clID must be 3–16 chars) |
+| `epp.clid01` / `epp.clid02` | `melendez-reg` / `melendez-tester` (or any two distinct `EPP_USERS` clIDs; each clID must be 3–16 chars) |
 | `epp.registeredNames` | one existing domain **not** sponsored by those two clients (e.g. `example.melendez`, sponsored by `melendez-admin`) |
 | `epp.registeredContacts` | at least two existing contact ids, e.g. `melendez-ct1` / `melendez-ct2` (preferred, ≤16) or `melendez-contact1` / `melendez-contact2` (also seeded for legacy RST input) or `NIC-001` / `EXA-001` |
 

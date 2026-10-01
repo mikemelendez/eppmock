@@ -9,6 +9,36 @@ import type { CommandContext } from "./types.js";
 const SHA256_A = "A".repeat(64);
 const SHA256_B = "B".repeat(64);
 
+test("persists secDNS DS derived from keyData create (epp.secDNSInterfaces=keyData)", async () => {
+  const repository = new InMemoryDomainRepository();
+  const service = new DomainService(repository);
+  const handler = new DomainCommandHandler(service);
+  const context: CommandContext = {
+    session: {
+      id: "test-session",
+      authenticated: true,
+      clid: "melendez-admin",
+      connectedAt: new Date(),
+      lastCommandAt: new Date()
+    },
+    rawXml: ""
+  };
+
+  const response = await handler.handle(parseEppXml(createKeyDataXml()), context);
+  assert.match(response, /<result code="1000">/);
+
+  const domain = await service.findByName("keydata.melendez");
+  assert.equal(domain?.dsRecords.length, 1);
+  assert.equal(domain?.dsRecords[0]?.algorithm, 16);
+  assert.equal(domain?.dsRecords[0]?.digestType, 2);
+  assert.equal(domain?.dsRecords[0]?.keyTag, 34300);
+  assert.match(domain?.dsRecords[0]?.digest ?? "", /^[A-F0-9]{64}$/);
+
+  const info = await handler.handle(parseEppXml(infoXml("keydata.melendez")), context);
+  assert.match(info, /<secDNS:alg>16<\/secDNS:alg>/);
+  assert.match(info, /<secDNS:keyTag>34300<\/secDNS:keyTag>/);
+});
+
 test("persists secDNS DS records from create and update commands", async () => {
   const repository = new InMemoryDomainRepository();
   const service = new DomainService(repository);
@@ -44,7 +74,7 @@ test("persists secDNS DS records from create and update commands", async () => {
     digest: SHA256_B
   });
 
-  const response = await handler.handle(parseEppXml(infoXml()), context);
+  const response = await handler.handle(parseEppXml(infoXml("signed.melendez")), context);
   assert.match(response, /<secDNS:infData/);
   assert.match(response, /<secDNS:keyTag>54321<\/secDNS:keyTag>/);
   assert.match(response, new RegExp(`<secDNS:digest>${SHA256_B}</secDNS:digest>`));
@@ -204,6 +234,31 @@ function createXml(keyTag: string, digest: string): string {
 </epp>`;
 }
 
+function createKeyDataXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <create>
+      <domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>keydata.melendez</domain:name>
+        <domain:period unit="y">1</domain:period>
+        <domain:authInfo><domain:pw>secret</domain:pw></domain:authInfo>
+      </domain:create>
+    </create>
+    <extension>
+      <secDNS:create xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1">
+        <secDNS:keyData>
+          <secDNS:flags>257</secDNS:flags>
+          <secDNS:protocol>3</secDNS:protocol>
+          <secDNS:alg>16</secDNS:alg>
+          <secDNS:pubKey>7JCMl8WwNOyFNWF6GBuMlIdtf08Cr1bO/hToZ6xCvKcu4o5ShXBzbCgzTGJHovhoUgj9wsMA1aWA</secDNS:pubKey>
+        </secDNS:keyData>
+      </secDNS:create>
+    </extension>
+  </command>
+</epp>`;
+}
+
 function createDomainXml(name: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
@@ -252,13 +307,13 @@ function updateXml(): string {
 </epp>`;
 }
 
-function infoXml(): string {
+function infoXml(name = "signed.melendez"): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
   <command>
     <info>
       <domain:info xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
-        <domain:name>signed.melendez</domain:name>
+        <domain:name>${name}</domain:name>
       </domain:info>
     </info>
   </command>
