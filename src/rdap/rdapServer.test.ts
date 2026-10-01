@@ -33,7 +33,8 @@ function testConfig(rdapRegistryPath = join(tmpdir(), "rdap-registry-test.json")
     tldNameserverPath: ":memory:",
     rdapRegistryPath,
     repositoryId: "ICANNRST",
-    eppTlsRequireClientCert: false
+    eppTlsRequireClientCert: false,
+    trustCertVariations: true
   };
 }
 

@@ -61,6 +61,17 @@ test("TLS client-certificate requirement is a real boolean and not coerced from 
   } as NodeJS.ProcessEnv);
 
   assert.equal(config.eppTlsRequireClientCert, false);
+  assert.equal(config.trustCertVariations, true);
   assert.equal(config.repositoryId, "MELENDEZ");
   assert.equal(config.eppTlsCertPath, "/tmp/cert.pem");
+});
+
+test("TRUST_CERT_VARIATIONS defaults to true and accepts explicit false", () => {
+  const trusted = loadConfig({} as NodeJS.ProcessEnv);
+  assert.equal(trusted.trustCertVariations, true);
+
+  const debug = loadConfig({
+    TRUST_CERT_VARIATIONS: "FALSE"
+  } as NodeJS.ProcessEnv);
+  assert.equal(debug.trustCertVariations, false);
 });

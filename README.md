@@ -95,6 +95,7 @@ Available variables:
 - `EPP_CLID` / `EPP_PASSWORD`, optional legacy override for the first default user
 - `EPP_TLS_CERT` / `EPP_TLS_KEY` / `EPP_TLS_CA`, optional PEM paths; when cert+key are set the EPP port uses TLS 1.2+ (RFC 5734)
 - `EPP_TLS_REQUIRE_CLIENT_CERT`, default `true` when TLS is enabled. Enforced on **TLS sessions only** (RST epp-03). The dashboard plaintext listener still uses password login
+- `TRUST_CERT_VARIATIONS`, default `true`. When `false`, TEMPORARY DEBUG rejects non-canonical / extraneous / unordered client-cert presentations (wire + post-handshake) so RST epp-01 `REJECTS_*` cases can be forced; leave `true` for normal RFC 8446 behavior
 - `EPP_REPOSITORY_ID`, default `ICANNRST` (IANA id used in ROIDs)
 - `RESET_HTTP_USER`, default `admin`
 - `RESET_HTTP_PASSWORD`, default `reset-secret`
