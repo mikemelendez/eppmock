@@ -460,6 +460,7 @@ test("epp-04/05/06 check returns avail 0/1 instead of failing the command", asyn
     ctx()
   );
   assert.equal(resultCode(domainCheck), "1000");
+  assert.match(domainCheck, /xmlns:xsi="http:\/\/www\.w3\.org\/2001\/XMLSchema-instance"/);
   assert.match(domainCheck, /<domain:name avail="0">taken\.melendez<\/domain:name>/);
   assert.match(domainCheck, /<domain:name avail="1">free-rst\.melendez<\/domain:name>/);
   assert.match(domainCheck, /<domain:name avail="0">nic\.melendez<\/domain:name>/);
@@ -472,6 +473,7 @@ test("epp-04/05/06 check returns avail 0/1 instead of failing the command", asyn
     ctx()
   );
   assert.equal(resultCode(hostCheck), "1000");
+  assert.match(hostCheck, /xmlns:xsi="http:\/\/www\.w3\.org\/2001\/XMLSchema-instance"/);
   assert.match(hostCheck, /<host:name avail="0">ns1\.example\.net<\/host:name>/);
   assert.match(hostCheck, /<host:name avail="1">ns9\.example\.net<\/host:name>/);
   assert.match(hostCheck, /avail="0"/);
@@ -483,6 +485,7 @@ test("epp-04/05/06 check returns avail 0/1 instead of failing the command", asyn
     ctx()
   );
   assert.equal(resultCode(contactCheck), "1000");
+  assert.match(contactCheck, /xmlns:xsi="http:\/\/www\.w3\.org\/2001\/XMLSchema-instance"/);
   assert.match(contactCheck, /<contact:id avail="0">chkc01<\/contact:id>/);
   assert.match(contactCheck, /<contact:id avail="1">freeid99<\/contact:id>/);
   assert.match(contactCheck, /<contact:id avail="0">ab<\/contact:id>/);

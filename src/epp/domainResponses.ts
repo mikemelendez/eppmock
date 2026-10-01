@@ -3,7 +3,8 @@ import type { DomainRecord } from "../domain/types.js";
 import { buildEppXml } from "./xml.js";
 
 const eppAttributes = {
-  "@_xmlns": "urn:ietf:params:xml:ns:epp-1.0"
+  "@_xmlns": "urn:ietf:params:xml:ns:epp-1.0",
+  "@_xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
 };
 
 const domainAttributes = {

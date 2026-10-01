@@ -3,7 +3,8 @@ import type { ContactRecord } from "../contact/types.js";
 import { buildEppXml } from "./xml.js";
 
 const eppAttributes = {
-  "@_xmlns": "urn:ietf:params:xml:ns:epp-1.0"
+  "@_xmlns": "urn:ietf:params:xml:ns:epp-1.0",
+  "@_xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
 };
 
 const contactAttributes = {
@@ -134,7 +135,12 @@ function contactErrorResponse(code: number, message: string, transactionId?: str
         result: {
           "@_code": code,
           msg: message,
-          ...(reason ? { extValue: { value: "", reason } } : {})
+          ...(reason
+            ? {
+                // EPP schema requires <value> to contain at least one child element.
+                extValue: { value: { undef: reason }, reason }
+              }
+            : {})
         },
         trID: { clTRID: transactionId, svTRID: randomUUID() }
       }

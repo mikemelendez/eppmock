@@ -3,7 +3,10 @@ import { XMLBuilder, XMLParser } from "fast-xml-parser";
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
-  textNodeName: "#text"
+  textNodeName: "#text",
+  // Keep E.164 voice/fax (e.g. +1.2742995934) as strings. Default number
+  // parsing drops the leading "+" and breaks RFC 5733 validation.
+  parseTagValue: false
 });
 
 const builder = new XMLBuilder({
