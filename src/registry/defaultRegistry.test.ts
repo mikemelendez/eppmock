@@ -10,7 +10,11 @@ import { InMemoryDomainRepository } from "../domain/inMemoryDomainRepository.js"
 import { HostService } from "../host/hostService.js";
 import { InMemoryHostRepository } from "../host/inMemoryHostRepository.js";
 import { RegistryLinks } from "./registryLinks.js";
-import { DEFAULT_REGISTRY_DOMAIN_NAMES, ensureDefaultRegistry } from "./defaultRegistry.js";
+import {
+  DEFAULT_REGISTRY_DOMAIN_NAMES,
+  DEFAULT_RST_REGISTERED_CONTACT_IDS,
+  ensureDefaultRegistry
+} from "./defaultRegistry.js";
 import { generateMelendezZone } from "../dns/melendezZone.js";
 
 function registry() {
@@ -155,5 +159,25 @@ test("registrars still cannot create reserved nic.melendez", async () => {
       registrarId: "melendez-registrar",
       registrantContact: "NIC-001"
     })
+  );
+});
+
+test("seeds schema-valid RST registered contacts for epp-06", async () => {
+  const services = registry();
+  await ensureDefaultRegistry(services);
+
+  for (const id of DEFAULT_RST_REGISTERED_CONTACT_IDS) {
+    assert.ok(id.length >= 3 && id.length <= 16, `${id} must fit clIDType`);
+    const contact = await services.contacts.findById(id);
+    assert.ok(contact, `missing seeded contact ${id}`);
+    assert.equal(contact.registrarId, "melendez-admin");
+    const [availability] = await services.contacts.checkAvailability([id]);
+    assert.equal(availability?.available, false);
+  }
+
+  // Misconfigured 17-char ids must not look "registered" when absent.
+  await assert.rejects(
+    () => services.contacts.checkAvailability(["melendez-contact1"]),
+    /not a valid clIDType/
   );
 });
