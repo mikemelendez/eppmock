@@ -124,7 +124,8 @@ export function contactAssociationProhibitsOperation(transactionId?: string): st
 }
 
 export function contactParameterPolicyError(transactionId?: string, reason?: string): string {
-  return contactErrorResponse(2005, "Parameter value policy error", transactionId, reason);
+  // RFC 5730: 2005 = Parameter value syntax error (2306 is policy).
+  return contactErrorResponse(2005, "Parameter value syntax error", transactionId, reason);
 }
 
 function contactErrorResponse(code: number, message: string, transactionId?: string, reason?: string): string {

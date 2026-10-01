@@ -98,7 +98,7 @@ export function hostNotAuthorized(transactionId?: string): string {
 }
 
 export function hostParameterPolicyError(transactionId?: string): string {
-  return hostErrorResponse(2005, "Parameter value policy error", transactionId);
+  return hostErrorResponse(2005, "Parameter value syntax error", transactionId);
 }
 
 export function hostAssociationProhibitsOperation(transactionId?: string): string {
