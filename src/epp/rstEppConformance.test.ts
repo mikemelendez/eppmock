@@ -725,10 +725,10 @@ test("epp-06 registered contacts return avail=0; unknown overlong ids are omitte
   assert.match(mixed, /<contact:id avail="1">freeid99<\/contact:id>/);
   assert.doesNotMatch(mixed, /toolongcontactid1/);
 
-  // Unknown overlong id (e.g. misconfigured epp.registeredContacts) → 2005, not avail=0.
+  // Unknown overlong id (not seeded) → 2005, not avail=0.
   const unknownOverlong = await contactHandler.handle(
     parseEppXml(
-      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><check><contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>melendez-contact1</contact:id></contact:check></check></command></epp>`
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><check><contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>thisisatoolongcontactid</contact:id></contact:check></check></command></epp>`
     ),
     ctx()
   );
