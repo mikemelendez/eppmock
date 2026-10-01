@@ -8,11 +8,15 @@ import {
   type RegistryLinks
 } from "../registry/registryLinks.js";
 import {
+  exceedsPostalLineLength,
   isAscii7Bit,
+  isClientSettableContactStatus,
+  isSchemaCompatibleContactId,
   isValidContactEmail,
   isValidContactId,
   isValidCountryCode,
-  isValidVoiceOrFax
+  isValidVoiceOrFax,
+  POSTAL_PC_MAX_LENGTH
 } from "./contactValidation.js";
 import type {
   ContactPostalInfo,
@@ -45,6 +49,14 @@ export class ContactService {
   ) {}
 
   async checkAvailability(ids: string[]): Promise<Array<{ id: string; available: boolean }>> {
+    // clIDType is maxLength 16 / minLength 3 — echoing out-of-range ids makes the
+    // check response schema-invalid (RST epp-06). Reject with 2005 instead.
+    for (const id of ids) {
+      if (!isSchemaCompatibleContactId(id)) {
+        throw new ContactValidationError("Contact id is not a valid clIDType");
+      }
+    }
+
     return Promise.all(
       ids.map(async (id) => {
         if (!isValidContactId(id)) {
@@ -187,6 +199,36 @@ function validateUpdateInput(input: UpdateContactInput): void {
   if (input.fax !== undefined && input.fax !== "" && !isValidVoiceOrFax(input.fax)) {
     throw new ContactValidationError("Contact fax is invalid");
   }
+
+  validateClientStatuses(input.statusesToAdd, "add");
+  validateClientStatuses(input.statusesToRemove, "rem");
+
+  const adds = new Set(input.statusesToAdd ?? []);
+  for (const status of input.statusesToRemove ?? []) {
+    if (adds.has(status)) {
+      throw new ContactValidationError(`Contact status ${status} cannot appear in both add and rem`);
+    }
+  }
+}
+
+function validateClientStatuses(statuses: string[] | undefined, section: "add" | "rem"): void {
+  if (!statuses || statuses.length === 0) {
+    return;
+  }
+
+  const seen = new Set<string>();
+
+  for (const status of statuses) {
+    if (!isClientSettableContactStatus(status)) {
+      throw new ContactValidationError(`Contact status ${status} is not client-settable`);
+    }
+
+    if (seen.has(status)) {
+      throw new ContactValidationError(`Contact status ${status} is duplicated in ${section}`);
+    }
+
+    seen.add(status);
+  }
 }
 
 function validatePostalInfo(postal: ContactPostalInfo): void {
@@ -196,6 +238,24 @@ function validatePostalInfo(postal: ContactPostalInfo): void {
 
   if (!postal.name?.trim() || !postal.city?.trim() || !postal.cc?.trim()) {
     throw new ContactValidationError("postalInfo name, city, and cc are required");
+  }
+
+  if (
+    exceedsPostalLineLength(postal.name) ||
+    exceedsPostalLineLength(postal.org) ||
+    exceedsPostalLineLength(postal.city) ||
+    exceedsPostalLineLength(postal.sp) ||
+    postal.street.some((street) => exceedsPostalLineLength(street))
+  ) {
+    throw new ContactValidationError("postalInfo field exceeds maximum length of 255");
+  }
+
+  if (postal.pc !== undefined && postal.pc.length > POSTAL_PC_MAX_LENGTH) {
+    throw new ContactValidationError("postalInfo pc exceeds maximum length of 16");
+  }
+
+  if (postal.street.length > 3) {
+    throw new ContactValidationError("postalInfo may contain at most 3 street elements");
   }
 
   if (!isValidCountryCode(postal.cc)) {

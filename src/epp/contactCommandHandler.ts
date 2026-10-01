@@ -62,8 +62,16 @@ export class ContactCommandHandler implements CommandHandler {
       return syntaxError(context.transactionId);
     }
 
-    const results = await this.contacts.checkAvailability(ids);
-    return contactCheckResponse(results, context.transactionId);
+    try {
+      const results = await this.contacts.checkAvailability(ids);
+      return contactCheckResponse(results, context.transactionId);
+    } catch (error) {
+      if (error instanceof ContactValidationError) {
+        return contactParameterPolicyError(context.transactionId, error.message);
+      }
+
+      throw error;
+    }
   }
 
   private async create(value: unknown, context: CommandContext): Promise<string> {
