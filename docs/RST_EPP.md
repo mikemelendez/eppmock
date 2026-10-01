@@ -42,7 +42,7 @@ Use these RST input parameters:
 | epp-18 | Renew extends expiry, sets `renewPeriod`, rejects expiry more than 10 years ahead; `curExpDate` must match when present |
 | epp-19 / epp-20 | Transfer request needs authInfo (`2202` if wrong), `pendingTransfer`, approve/reject, `transferPeriod` on approve, 10-year cap |
 | epp-21 | Fresh delete in add-grace purges the domain (`1000`); unlinked hosts/contacts can then be deleted |
-| epp-23 | Host rename: invalid name rejected; external rename allowed; rename into another registrar's domain or a missing parent rejected |
+| epp-23 | Host rename: invalid name rejected; external rename allowed; rename into another registrar's domain → `2201`. Same clid mistake as epp-16 yields `EPP_HOST_RENAME_SERVER_ACCEPTS_RENAME_TO_ANOTHER_REGISTRARS_DOMAIN` |
 | epp-25–27 | Narrow glue: only the superordinate sponsor can create in-bailiwick hosts, and those hosts require glue |
 
 `npm test` includes `src/epp/rstEppConformance.test.ts` (in-process cases) and
@@ -65,11 +65,16 @@ Example `EPP_USERS` after ICANN issues certs (keep the passwords you already use
 [{"clid":"melendez-admin","password":"..."},{"clid":"melendez-registrar","password":"...","clientCertSha256":"..."},{"clid":"melendez-tester","password":"...","clientCertSha256":"..."}]
 ```
 
-### epp-16: `EPP_UNEXPECTED_COMMAND_SUCCESS` on `example.melendez`
+### epp-16 / epp-23: other-registrar checks fail when clid is `melendez-admin`
 
-RST ends epp-16 by updating a domain from `epp.registeredNames` and expects **`2201` Authorization error** (domain sponsored by another registrar).
+Several cases use `epp.registeredNames` (`example.melendez`, sponsored by `melendez-admin`) and expect **`2201`** when clid01/clid02 touch it:
 
-If the log shows domains created during the case with `<domain:clID>melendez-admin</domain:clID>`, then **`epp.clid01` (or clid02) is `melendez-admin`**. That same clID also sponsors seeded `example.melendez`, so the update returns **1000** and RST fails with `EPP_UNEXPECTED_COMMAND_SUCCESS`.
+| Case | Symptom when clid is `melendez-admin` |
+| --- | --- |
+| epp-16 | `EPP_UNEXPECTED_COMMAND_SUCCESS` — domain update of `example.melendez` returns 1000 |
+| epp-23 | `EPP_HOST_RENAME_SERVER_ACCEPTS_RENAME_TO_ANOTHER_REGISTRARS_DOMAIN` — host rename into `*.example.melendez` returns 1000 |
+
+If the log shows `<domain:clID>melendez-admin</domain:clID>` or `<host:clID>melendez-admin</host:clID>` on objects **created during the case**, then **`epp.clid01` (or clid02) is `melendez-admin`**. That clID sponsors `example.melendez`, so the server correctly authorizes the operation.
 
 Fix the RST input (no server redeploy needed):
 

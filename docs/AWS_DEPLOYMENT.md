@@ -93,7 +93,7 @@ Example `EPP_USERS` secret:
 ]
 ```
 
-RST input: `epp.clid01` / `epp.clid02` = `melendez-registrar` / `melendez-tester`, and `epp.registeredNames` = `["example.melendez"]` (seeded under `melendez-admin`). Do **not** set either RST clID to `melendez-admin` — epp-16 will then update `example.melendez` as its own sponsor and fail with `EPP_UNEXPECTED_COMMAND_SUCCESS`.
+RST input: `epp.clid01` / `epp.clid02` = `melendez-registrar` / `melendez-tester`, and `epp.registeredNames` = `["example.melendez"]` (seeded under `melendez-admin`). Do **not** set either RST clID to `melendez-admin` — epp-16 fails with `EPP_UNEXPECTED_COMMAND_SUCCESS` and epp-23 with `EPP_HOST_RENAME_SERVER_ACCEPTS_RENAME_TO_ANOTHER_REGISTRARS_DOMAIN` (both need `example.melendez` to be another registrar’s domain).
 
 Smoke-test TLS login before ICANN issues certs with a throwaway client cert:
 

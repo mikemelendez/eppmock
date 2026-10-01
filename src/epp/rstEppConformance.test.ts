@@ -893,6 +893,14 @@ test("epp-23 rename into another registrar domain is 2201 and external rename dr
     ctx()
   );
   assert.equal(resultCode(intoTheirs), "2201");
+  // RST epp-23 uses a deep subordinate of epp.registeredNames (e.g. *.example.melendez).
+  const intoDeepTheirs = await hostHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><host:update xmlns:host="urn:ietf:params:xml:ns:host-1.0"><host:name>ns1.mine.melendez</host:name><host:chg><host:name>ns1.epp-23.rst.deep.theirs.melendez</host:name></host:chg></host:update></update></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(intoDeepTheirs), "2201");
   const external = await hostHandler.handle(
     parseEppXml(
       `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><host:update xmlns:host="urn:ietf:params:xml:ns:host-1.0"><host:name>ns1.mine.melendez</host:name><host:chg><host:name>ns1.epp-23.example.net</host:name></host:chg></host:update></update></command></epp>`
