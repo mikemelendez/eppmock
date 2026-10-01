@@ -93,7 +93,7 @@ Example `EPP_USERS` secret:
 ]
 ```
 
-Seed `epp.registeredNames` with a domain **not** sponsored by those two clients (create it as `melendez-admin` from the dashboard).
+RST input: `epp.clid01` / `epp.clid02` = `melendez-registrar` / `melendez-tester`, and `epp.registeredNames` = `["example.melendez"]` (seeded under `melendez-admin`). Do **not** set either RST clID to `melendez-admin` — epp-16 will then update `example.melendez` as its own sponsor and fail with `EPP_UNEXPECTED_COMMAND_SUCCESS`.
 
 Smoke-test TLS login before ICANN issues certs with a throwaway client cert:
 

@@ -21,8 +21,8 @@ Use these RST input parameters:
 | `epp.requiredContactTypes` | `[]` (registrant is required; admin/tech/billing are optional) |
 | `epp.secDNSInterfaces` | `dsData` |
 | `epp.supportedContactPostalInfoTypes` | `both` |
-| `epp.clid01` / `epp.clid02` | `melendez-registrar` / `melendez-tester` (or any two distinct `EPP_USERS` clIDs; each clID must be 3–16 chars) |
-| `epp.registeredNames` | one existing domain **not** sponsored by those two clients (e.g. `example.melendez`, sponsored by `melendez-admin`) |
+| `epp.clid01` / `epp.clid02` | **`melendez-registrar` / `melendez-tester` only** — do **not** use `melendez-admin` (that clID sponsors the seeded `epp.registeredNames` domain) |
+| `epp.registeredNames` | `["example.melendez"]` (seeded, sponsored by `melendez-admin` — must **not** be sponsored by clid01/clid02) |
 | `epp.registeredContacts` | at least two existing contact ids, e.g. `melendez-ct1` / `melendez-ct2` (preferred, ≤16) or `melendez-contact1` / `melendez-contact2` (also seeded for legacy RST input) or `NIC-001` / `EXA-001` |
 
 ## Protocol coverage (implemented here)
@@ -38,7 +38,7 @@ Use these RST input parameters:
 | epp-11 / epp-13 | Internal hosts need a superordinate domain + public glue; external hosts may be glueless; `v5`/empty/loopback/`::1` rejected |
 | epp-14 | Domain create requires registrant, host **objects** (not attributes), existing hosts/contacts, period 1–10y, valid DS; info has `roid`/`clID`/`crID`. ROID repository suffix must be IANA-registered — see below |
 | epp-15 | Linked contact/host delete returns `2305` |
-| epp-16 | Domain update of NS/status/DS; other registrar gets `2201` |
+| epp-16 | Domain update of NS/status/DS; other registrar gets `2201`. If you see `EPP_UNEXPECTED_COMMAND_SUCCESS` on `example.melendez`, clid01/clid02 is wrong — see below |
 | epp-18 | Renew extends expiry, sets `renewPeriod`, rejects expiry more than 10 years ahead; `curExpDate` must match when present |
 | epp-19 / epp-20 | Transfer request needs authInfo (`2202` if wrong), `pendingTransfer`, approve/reject, `transferPeriod` on approve, 10-year cap |
 | epp-21 | Fresh delete in add-grace purges the domain (`1000`); unlinked hosts/contacts can then be deleted |
@@ -64,6 +64,22 @@ Example `EPP_USERS` after ICANN issues certs (keep the passwords you already use
 ```
 [{"clid":"melendez-admin","password":"..."},{"clid":"melendez-registrar","password":"...","clientCertSha256":"..."},{"clid":"melendez-tester","password":"...","clientCertSha256":"..."}]
 ```
+
+### epp-16: `EPP_UNEXPECTED_COMMAND_SUCCESS` on `example.melendez`
+
+RST ends epp-16 by updating a domain from `epp.registeredNames` and expects **`2201` Authorization error** (domain sponsored by another registrar).
+
+If the log shows domains created during the case with `<domain:clID>melendez-admin</domain:clID>`, then **`epp.clid01` (or clid02) is `melendez-admin`**. That same clID also sponsors seeded `example.melendez`, so the update returns **1000** and RST fails with `EPP_UNEXPECTED_COMMAND_SUCCESS`.
+
+Fix the RST input (no server redeploy needed):
+
+```json
+"epp.clid01": "melendez-registrar",
+"epp.clid02": "melendez-tester",
+"epp.registeredNames": ["example.melendez"]
+```
+
+Keep client-cert fingerprints on `melendez-registrar` / `melendez-tester` in `EPP_USERS`. Use `melendez-admin` only for dashboard / seeding — never as an RST test registrar when `registeredNames` is `example.melendez`.
 
 ### EPP repository ID (`EPP_REPOSITORY_ID`) — epp-14 ROID suffix
 
