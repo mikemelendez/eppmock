@@ -33,10 +33,76 @@ test("persists secDNS DS derived from keyData create (epp.secDNSInterfaces=keyDa
   assert.equal(domain?.dsRecords[0]?.digestType, 2);
   assert.equal(domain?.dsRecords[0]?.keyTag, 34300);
   assert.match(domain?.dsRecords[0]?.digest ?? "", /^[A-F0-9]{64}$/);
+  assert.equal(domain?.keyData?.length, 1);
+  assert.deepEqual(domain?.keyData?.[0], {
+    flags: 257,
+    protocol: 3,
+    algorithm: 16,
+    publicKey: "7JCMl8WwNOyFNWF6GBuMlIdtf08Cr1bO/hToZ6xCvKcu4o5ShXBzbCgzTGJHovhoUgj9wsMA1aWA"
+  });
 
   const info = await handler.handle(parseEppXml(infoXml("keydata.melendez")), context);
+  assert.match(info, /<secDNS:keyData>/);
+  assert.match(info, /<secDNS:flags>257<\/secDNS:flags>/);
+  assert.match(info, /<secDNS:protocol>3<\/secDNS:protocol>/);
   assert.match(info, /<secDNS:alg>16<\/secDNS:alg>/);
+  assert.match(
+    info,
+    /<secDNS:pubKey>7JCMl8WwNOyFNWF6GBuMlIdtf08Cr1bO\/hToZ6xCvKcu4o5ShXBzbCgzTGJHovhoUgj9wsMA1aWA<\/secDNS:pubKey>/
+  );
   assert.match(info, /<secDNS:keyTag>34300<\/secDNS:keyTag>/);
+});
+
+test("rejects DNSKEY flags 256 on keyData update (RST epp-16)", async () => {
+  const repository = new InMemoryDomainRepository();
+  const service = new DomainService(repository);
+  const handler = new DomainCommandHandler(service);
+  const context: CommandContext = {
+    session: {
+      id: "test-session",
+      authenticated: true,
+      clid: "melendez-admin",
+      connectedAt: new Date(),
+      lastCommandAt: new Date()
+    },
+    rawXml: ""
+  };
+
+  assert.match(await handler.handle(parseEppXml(createKeyDataXml()), context), /<result code="1000">/);
+  const rejected = await handler.handle(parseEppXml(updateKeyDataXml(256)), context);
+  assert.match(rejected, /<result code="2005">/);
+});
+
+test("non-sponsoring registrar can info a domain without authInfo (omit pw)", async () => {
+  const repository = new InMemoryDomainRepository();
+  const service = new DomainService(repository);
+  const handler = new DomainCommandHandler(service);
+  const owner: CommandContext = {
+    session: {
+      id: "owner",
+      authenticated: true,
+      clid: "melendez-admin",
+      connectedAt: new Date(),
+      lastCommandAt: new Date()
+    },
+    rawXml: ""
+  };
+  const other: CommandContext = {
+    session: {
+      id: "other",
+      authenticated: true,
+      clid: "melendez-reg",
+      connectedAt: new Date(),
+      lastCommandAt: new Date()
+    },
+    rawXml: ""
+  };
+
+  assert.match(await handler.handle(parseEppXml(createKeyDataXml()), owner), /<result code="1000">/);
+  const info = await handler.handle(parseEppXml(infoXml("keydata.melendez")), other);
+  assert.match(info, /<result code="1000">/);
+  assert.doesNotMatch(info, /<domain:authInfo>/);
+  assert.match(info, /<secDNS:flags>257<\/secDNS:flags>/);
 });
 
 test("persists secDNS DS records from create and update commands", async () => {
@@ -254,6 +320,31 @@ function createKeyDataXml(): string {
           <secDNS:pubKey>7JCMl8WwNOyFNWF6GBuMlIdtf08Cr1bO/hToZ6xCvKcu4o5ShXBzbCgzTGJHovhoUgj9wsMA1aWA</secDNS:pubKey>
         </secDNS:keyData>
       </secDNS:create>
+    </extension>
+  </command>
+</epp>`;
+}
+
+function updateKeyDataXml(flags: number): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <update>
+      <domain:update xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+        <domain:name>keydata.melendez</domain:name>
+      </domain:update>
+    </update>
+    <extension>
+      <secDNS:update xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1">
+        <secDNS:add>
+          <secDNS:keyData>
+            <secDNS:flags>${flags}</secDNS:flags>
+            <secDNS:protocol>3</secDNS:protocol>
+            <secDNS:alg>16</secDNS:alg>
+            <secDNS:pubKey>7JCMl8WwNOyFNWF6GBuMlIdtf08Cr1bO/hToZ6xCvKcu4o5ShXBzbCgzTGJHovhoUgj9wsMA1aWA</secDNS:pubKey>
+          </secDNS:keyData>
+        </secDNS:add>
+      </secDNS:update>
     </extension>
   </command>
 </epp>`;

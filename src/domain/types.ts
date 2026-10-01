@@ -10,6 +10,8 @@ export interface DomainRecord {
   contacts: DomainContact[];
   authInfo?: string;
   dsRecords: DomainDsRecord[];
+  /** RFC 5910 keyData interface material (echoed on domain:info). */
+  keyData?: DomainKeyData[];
   createdAt: string;
   updatedAt?: string;
   expiresAt: string;
@@ -26,6 +28,7 @@ export interface CreateDomainInput {
   contacts?: DomainContact[];
   authInfo?: string;
   dsRecords?: DomainDsRecord[];
+  keyData?: DomainKeyData[];
 }
 
 export interface UpdateDomainInput {
@@ -39,6 +42,8 @@ export interface UpdateDomainInput {
   authInfo?: string;
   dsRecordsToAdd?: DomainDsRecord[];
   dsRecordsToRemove?: DomainDsRecord[];
+  keyDataToAdd?: DomainKeyData[];
+  keyDataToRemove?: DomainKeyData[];
   rgpStatus?: string | null;
 }
 
@@ -64,6 +69,14 @@ export interface DomainDsRecord {
   algorithm: number;
   digestType: number;
   digest: string;
+}
+
+/** DNSKEY material accepted via RFC 5910 secDNS keyData. */
+export interface DomainKeyData {
+  flags: number;
+  protocol: number;
+  algorithm: number;
+  publicKey: string;
 }
 
 export interface DomainRepository {

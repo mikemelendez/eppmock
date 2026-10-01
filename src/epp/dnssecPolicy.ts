@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { DomainDsRecord } from "../domain/types.js";
+import type { DomainDsRecord, DomainKeyData } from "../domain/types.js";
 
 /** IANA DNSSEC algorithm numbers commonly accepted for DS records. */
 const DS_ALGORITHMS = new Set([3, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16]);
@@ -10,7 +10,11 @@ const DIGEST_HEX_LENGTH: Record<number, number> = {
   4: 96
 };
 
-const DNSKEY_FLAGS = new Set([256, 257]);
+/**
+ * RST epp.secDNSInterfaces=keyData only accepts SEP/KSK flags (257).
+ * ZSK flags 256 are rejected as EPP_DOMAIN_*_SERVER_ACCEPTS_INVALID_DNSSEC_DATA.
+ */
+const DNSKEY_FLAGS = new Set([257]);
 
 export class DnssecPolicyError extends Error {
   constructor(readonly reason: string) {
@@ -42,13 +46,9 @@ export function assertValidDsRecord(record: DomainDsRecord): void {
  * RFC 5910 keyData interface: accept DNSKEY material and derive a DS record
  * (SHA-256 / digest type 2 by default) for storage and zone publication.
  */
-export function dsRecordFromKeyData(
-  ownerName: string,
-  keyData: { flags: number; protocol: number; algorithm: number; publicKey: string },
-  digestType = 2
-): DomainDsRecord {
+export function assertValidKeyData(keyData: DomainKeyData): void {
   if (!DNSKEY_FLAGS.has(keyData.flags)) {
-    throw new DnssecPolicyError("DNSKEY flags must be 256 or 257");
+    throw new DnssecPolicyError("DNSKEY flags must be 257");
   }
 
   if (keyData.protocol !== 3) {
@@ -58,6 +58,16 @@ export function dsRecordFromKeyData(
   if (!DS_ALGORITHMS.has(keyData.algorithm)) {
     throw new DnssecPolicyError("DNSKEY algorithm is not a registered DNSSEC algorithm");
   }
+
+  decodeDnskeyPublicKey(keyData.publicKey);
+}
+
+export function dsRecordFromKeyData(
+  ownerName: string,
+  keyData: DomainKeyData,
+  digestType = 2
+): DomainDsRecord {
+  assertValidKeyData(keyData);
 
   const publicKeyWire = decodeDnskeyPublicKey(keyData.publicKey);
   const dnskeyRdata = Buffer.concat([
@@ -75,6 +85,10 @@ export function dsRecordFromKeyData(
   };
   assertValidDsRecord(record);
   return record;
+}
+
+export function keyDataKey(record: DomainKeyData): string {
+  return `${record.flags}:${record.protocol}:${record.algorithm}:${record.publicKey.replace(/\s+/g, "")}`;
 }
 
 function decodeDnskeyPublicKey(value: string): Buffer {

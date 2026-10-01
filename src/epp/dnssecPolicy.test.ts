@@ -34,6 +34,16 @@ test("rejects invalid DNSKEY flags or protocol", () => {
   assert.throws(
     () =>
       dsRecordFromKeyData("example.melendez", {
+        flags: 256,
+        protocol: 3,
+        algorithm: 16,
+        publicKey: RST_ED448_PUBKEY
+      }),
+    DnssecPolicyError
+  );
+  assert.throws(
+    () =>
+      dsRecordFromKeyData("example.melendez", {
         flags: 257,
         protocol: 1,
         algorithm: 13,
