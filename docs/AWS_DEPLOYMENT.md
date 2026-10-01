@@ -76,7 +76,7 @@ openssl s_client -connect eppmock.melendez.mx:700 -tls1_1
 
 ### 4. RST registrar certificates (epp-03)
 
-ICANN gives you `epp.client01Certificate` / `epp.client02Certificate` (or CSRs). Put each SHA-256 fingerprint on `melendez-registrar` and `melendez-tester` in the GitHub `EPP_USERS` secret (those are `epp.clid01` / `epp.clid02`):
+ICANN gives you `epp.client01Certificate` / `epp.client02Certificate` (or CSRs). Put each SHA-256 fingerprint on `melendez-reg` and `melendez-tester` in the GitHub `EPP_USERS` secret (those are `epp.clid01` / `epp.clid02`):
 
 ```bash
 chmod +x deploy/fingerprint-cert.sh
@@ -88,21 +88,21 @@ Example `EPP_USERS` secret:
 ```json
 [
   {"clid":"melendez-admin","password":"..."},
-  {"clid":"melendez-registrar","password":"...","clientCertSha256":"ab12..."},
+  {"clid":"melendez-reg","password":"...","clientCertSha256":"ab12..."},
   {"clid":"melendez-tester","password":"...","clientCertSha256":"cd34..."}
 ]
 ```
 
-RST input: `epp.clid01` / `epp.clid02` = `melendez-registrar` / `melendez-tester`, and `epp.registeredNames` = `["example.melendez"]` (seeded under `melendez-admin`). Do **not** set either RST clID to `melendez-admin` — epp-16 fails with `EPP_UNEXPECTED_COMMAND_SUCCESS` and epp-23 with `EPP_HOST_RENAME_SERVER_ACCEPTS_RENAME_TO_ANOTHER_REGISTRARS_DOMAIN` (both need `example.melendez` to be another registrar’s domain).
+RST input: `epp.clid01` / `epp.clid02` = `melendez-reg` / `melendez-tester` (≤16 chars; the old name `melendez-registrar` is 18 and RST rejects it), and `epp.registeredNames` = `["example.melendez"]` (seeded under `melendez-admin`). Do **not** set either RST clID to `melendez-admin` — epp-16 fails with `EPP_UNEXPECTED_COMMAND_SUCCESS` and epp-23 with `EPP_HOST_RENAME_SERVER_ACCEPTS_RENAME_TO_ANOTHER_REGISTRARS_DOMAIN`.
 
 Smoke-test TLS login before ICANN issues certs with a throwaway client cert:
 
 ```bash
-openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/registrar.key -out /tmp/registrar.pem -days 30 -subj "/CN=melendez-registrar"
+openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/registrar.key -out /tmp/registrar.pem -days 30 -subj "/CN=melendez-reg"
 ./deploy/fingerprint-cert.sh /tmp/registrar.pem
 ```
 
-Put that fingerprint on `melendez-registrar` in `EPP_USERS`, redeploy, then:
+Put that fingerprint on `melendez-reg` in `EPP_USERS`, redeploy, then:
 
 ```bash
 openssl s_client -connect eppmock.melendez.mx:700 -servername eppmock.melendez.mx -cert /tmp/registrar.pem -key /tmp/registrar.key

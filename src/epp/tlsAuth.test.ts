@@ -45,7 +45,7 @@ test("epp-01/03 TLS 1.2 greeting and client-certificate login binding", async (t
     execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", caKey, "-out", caCert, "-days", "1", "-subj", "/CN=EPP Test CA"]);
     execFileSync("openssl", ["req", "-newkey", "rsa:2048", "-nodes", "-keyout", serverKey, "-out", join(dir, "server.csr"), "-subj", "/CN=localhost"]);
     execFileSync("openssl", ["x509", "-req", "-in", join(dir, "server.csr"), "-CA", caCert, "-CAkey", caKey, "-CAcreateserial", "-out", serverCert, "-days", "1"]);
-    execFileSync("openssl", ["req", "-newkey", "rsa:2048", "-nodes", "-keyout", client1Key, "-out", join(dir, "c1.csr"), "-subj", "/CN=melendez-registrar"]);
+    execFileSync("openssl", ["req", "-newkey", "rsa:2048", "-nodes", "-keyout", client1Key, "-out", join(dir, "c1.csr"), "-subj", "/CN=melendez-reg"]);
     execFileSync("openssl", ["x509", "-req", "-in", join(dir, "c1.csr"), "-CA", caCert, "-CAkey", caKey, "-CAcreateserial", "-out", client1Cert, "-days", "1"]);
     execFileSync("openssl", ["req", "-newkey", "rsa:2048", "-nodes", "-keyout", client2Key, "-out", join(dir, "c2.csr"), "-subj", "/CN=melendez-tester"]);
     execFileSync("openssl", ["x509", "-req", "-in", join(dir, "c2.csr"), "-CA", caCert, "-CAkey", caKey, "-CAcreateserial", "-out", client2Cert, "-days", "1"]);
@@ -60,7 +60,7 @@ test("epp-01/03 TLS 1.2 greeting and client-certificate login binding", async (t
       EPP_TLS_CA: caCert,
       EPP_TLS_REQUIRE_CLIENT_CERT: "true",
       EPP_USERS: JSON.stringify([
-        { clid: "melendez-registrar", password: "registrar-secret", clientCertSha256: fp1 },
+        { clid: "melendez-reg", password: "registrar-secret", clientCertSha256: fp1 },
         { clid: "melendez-tester", password: "tester-secret", clientCertSha256: fp2 }
       ]),
       STORAGE_MODE: "memory"
@@ -80,7 +80,7 @@ test("epp-01/03 TLS 1.2 greeting and client-certificate login binding", async (t
     const loginOk = await tlsExchange(
       port,
       { ca: readFileSync(caCert), key: readFileSync(client1Key), cert: readFileSync(client1Cert) },
-      loginXml("melendez-registrar", "registrar-secret")
+      loginXml("melendez-reg", "registrar-secret")
     );
     assert.match(loginOk.frames[1] ?? "", /<result code="1000">/);
     assert.match(loginOk.cipherName, /GCM|CHACHA|AES/);
@@ -88,14 +88,14 @@ test("epp-01/03 TLS 1.2 greeting and client-certificate login binding", async (t
     const wrongCert = await tlsExchange(
       port,
       { ca: readFileSync(caCert), key: readFileSync(client2Key), cert: readFileSync(client2Cert) },
-      loginXml("melendez-registrar", "registrar-secret")
+      loginXml("melendez-reg", "registrar-secret")
     );
     assert.match(wrongCert.frames[1] ?? "", /<result code="2200">/);
 
     const missingCert = await tlsExchange(
       port,
       { ca: readFileSync(caCert) },
-      loginXml("melendez-registrar", "registrar-secret")
+      loginXml("melendez-reg", "registrar-secret")
     );
     assert.match(missingCert.frames[1] ?? "", /<result code="2200">/);
 

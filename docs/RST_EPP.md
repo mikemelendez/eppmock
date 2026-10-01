@@ -21,7 +21,7 @@ Use these RST input parameters:
 | `epp.requiredContactTypes` | `[]` (registrant is required; admin/tech/billing are optional) |
 | `epp.secDNSInterfaces` | `dsData` |
 | `epp.supportedContactPostalInfoTypes` | `both` |
-| `epp.clid01` / `epp.clid02` | **`melendez-registrar` / `melendez-tester` only** — do **not** use `melendez-admin` (that clID sponsors the seeded `epp.registeredNames` domain) |
+| `epp.clid01` / `epp.clid02` | **`melendez-reg` / `melendez-tester`** (3–16 chars each; do **not** use `melendez-admin`, and do **not** use the old 18-char `melendez-registrar` — RST returns `eppClid01 size must be between 3 and 16`) |
 | `epp.registeredNames` | `["example.melendez"]` (seeded, sponsored by `melendez-admin` — must **not** be sponsored by clid01/clid02) |
 | `epp.registeredContacts` | at least two existing contact ids, e.g. `melendez-ct1` / `melendez-ct2` (preferred, ≤16) or `melendez-contact1` / `melendez-contact2` (also seeded for legacy RST input) or `NIC-001` / `EXA-001` |
 
@@ -56,13 +56,13 @@ Do **not** proxy EPP through Caddy. Details: `docs/AWS_DEPLOYMENT.md`.
 | Case | Status / what remains |
 | --- | --- |
 | epp-01 | Public `A` + TCP 700 + browser-trusted SAN are in place. Optionally add `AAAA`. When ICANN publishes `epp.clientACL`, restrict SG 700 to those IPs. Each TLS connect logs the peer leaf/chain (`TLS client cert session=…`) so RST normal / unordered / extraneous presentations are visible in app logs. |
-| epp-03 | Put RST client-cert SHA-256 fingerprints on `melendez-registrar` / `melendez-tester` in GitHub `EPP_USERS` (`./deploy/fingerprint-cert.sh client.pem`), then redeploy. Until then, greeting on 700 works; TLS login is rejected. Dashboard login does not need a client cert. |
+| epp-03 | Put RST client-cert SHA-256 fingerprints on `melendez-reg` / `melendez-tester` in GitHub `EPP_USERS` (`./deploy/fingerprint-cert.sh client.pem`), then redeploy. Until then, greeting on 700 works; TLS login is rejected. Dashboard login does not need a client cert. |
 | epp-17 | One instance must serve every `A`/`AAAA` (no second proxy in front of 700). |
 
 Example `EPP_USERS` after ICANN issues certs (keep the passwords you already use):
 
 ```
-[{"clid":"melendez-admin","password":"..."},{"clid":"melendez-registrar","password":"...","clientCertSha256":"..."},{"clid":"melendez-tester","password":"...","clientCertSha256":"..."}]
+[{"clid":"melendez-admin","password":"..."},{"clid":"melendez-reg","password":"...","clientCertSha256":"..."},{"clid":"melendez-tester","password":"...","clientCertSha256":"..."}]
 ```
 
 ### epp-16 / epp-23: other-registrar checks fail when clid is `melendez-admin`
@@ -76,15 +76,18 @@ Several cases use `epp.registeredNames` (`example.melendez`, sponsored by `melen
 
 If the log shows `<domain:clID>melendez-admin</domain:clID>` or `<host:clID>melendez-admin</host:clID>` on objects **created during the case**, then **`epp.clid01` (or clid02) is `melendez-admin`**. That clID sponsors `example.melendez`, so the server correctly authorizes the operation.
 
-Fix the RST input (no server redeploy needed):
+Fix (requires GitHub `EPP_USERS` update + redeploy if production still has `melendez-registrar`):
+
+1. In `EPP_USERS`, rename clid `melendez-registrar` → `melendez-reg` (keep the same password and `clientCertSha256`), redeploy.
+2. Set RST input:
 
 ```json
-"epp.clid01": "melendez-registrar",
+"epp.clid01": "melendez-reg",
 "epp.clid02": "melendez-tester",
 "epp.registeredNames": ["example.melendez"]
 ```
 
-Keep client-cert fingerprints on `melendez-registrar` / `melendez-tester` in `EPP_USERS`. Use `melendez-admin` only for dashboard / seeding — never as an RST test registrar when `registeredNames` is `example.melendez`.
+Use `melendez-admin` only for dashboard / seeding — never as an RST test registrar when `registeredNames` is `example.melendez`.
 
 ### EPP repository ID (`EPP_REPOSITORY_ID`) — epp-14 ROID suffix
 

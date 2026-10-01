@@ -109,7 +109,7 @@ When `NODE_ENV=production`, `RESET_HTTP_PASSWORD` must be changed from defaults 
 Default EPP login users:
 
 - `melendez-admin` / `admin-secret`
-- `melendez-registrar` / `registrar-secret`
+- `melendez-reg` / `registrar-secret`
 - `melendez-tester` / `tester-secret`
 
 ## Usage
@@ -171,7 +171,7 @@ curl -X POST http://127.0.0.1:8080/reset \
     "domains": [
       {
         "name": "example.melendez",
-        "registrarId": "melendez-registrar",
+        "registrarId": "melendez-reg",
         "periodYears": 1,
         "statuses": ["ok"],
         "createdAt": "2026-01-01T00:00:00.000Z",

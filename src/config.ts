@@ -11,7 +11,7 @@ export type AuthUser = z.infer<typeof authUserSchema>;
 
 export const defaultAuthUsers: AuthUser[] = [
   { clid: "melendez-admin", password: "admin-secret" },
-  { clid: "melendez-registrar", password: "registrar-secret" },
+  { clid: "melendez-reg", password: "registrar-secret" },
   { clid: "melendez-tester", password: "tester-secret" }
 ];
 

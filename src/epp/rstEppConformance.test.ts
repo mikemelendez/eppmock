@@ -17,7 +17,7 @@ import type { CommandContext } from "./types.js";
 import { parseEppXml } from "./xml.js";
 import { greeting } from "./responses.js";
 
-function ctx(clid = "melendez-registrar"): CommandContext {
+function ctx(clid = "melendez-reg"): CommandContext {
   return {
     session: {
       id: "rst",
@@ -137,7 +137,7 @@ test("epp-03 rejects unknown client and wrong password", async () => {
 
   const badPw = await handler.handle(
     parseEppXml(
-      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><login><clID>melendez-registrar</clID><pw>wrong</pw><options><version>1.0</version><lang>en</lang></options><svcs><objURI>urn:ietf:params:xml:ns:domain-1.0</objURI></svcs></login></command></epp>`
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><login><clID>melendez-reg</clID><pw>wrong</pw><options><version>1.0</version><lang>en</lang></options><svcs><objURI>urn:ietf:params:xml:ns:domain-1.0</objURI></svcs></login></command></epp>`
     ),
     ctx()
   );
@@ -183,7 +183,7 @@ test("epp-07 contact create validates id, country, email, voice and stores value
 
 test("epp-08 non-sponsoring registrar cannot info or update a contact", async () => {
   const { contactHandler } = registry();
-  await contactHandler.handle(parseEppXml(contactCreateXml("owned1")), ctx("melendez-registrar"));
+  await contactHandler.handle(parseEppXml(contactCreateXml("owned1")), ctx("melendez-reg"));
 
   const info = await contactHandler.handle(
     parseEppXml(
@@ -334,8 +334,8 @@ test("epp-14/15/16/18/19/21 domain lifecycle with host objects, RGP, transfer, a
     ctx()
   );
   assert.equal(resultCode(info), "1000");
-  assert.match(info, /<domain:clID>melendez-registrar<\/domain:clID>/);
-  assert.match(info, /<domain:crID>melendez-registrar<\/domain:crID>/);
+  assert.match(info, /<domain:clID>melendez-reg<\/domain:clID>/);
+  assert.match(info, /<domain:crID>melendez-reg<\/domain:crID>/);
   assert.match(info, /-ICANNRST<\/domain:roid>/);
   assert.match(info, /<rgp:rgpStatus s="addPeriod"/);
   assert.match(info, new RegExp(`<secDNS:digest>${SHA256}</secDNS:digest>`));
@@ -399,7 +399,7 @@ test("epp-14/15/16/18/19/21 domain lifecycle with host objects, RGP, transfer, a
   );
   assert.equal(resultCode(transferOk), "1000");
   assert.match(transferOk, /<domain:trStatus>pending<\/domain:trStatus>/);
-  assert.match(transferOk, /<domain:acID>melendez-registrar<\/domain:acID>/);
+  assert.match(transferOk, /<domain:acID>melendez-reg<\/domain:acID>/);
   assert.match(transferOk, /<domain:reID>melendez-tester<\/domain:reID>/);
   assert.ok((await domains.findByName("lifecycle.melendez"))?.statuses.includes("pendingTransfer"));
 
@@ -412,7 +412,7 @@ test("epp-14/15/16/18/19/21 domain lifecycle with host objects, RGP, transfer, a
   assert.equal(resultCode(approve), "1000");
   assert.match(approve, /<domain:trStatus>clientApproved<\/domain:trStatus>/);
   assert.doesNotMatch(approve, /<domain:trStatus>approved<\/domain:trStatus>/);
-  assert.match(approve, /<domain:acID>melendez-registrar<\/domain:acID>/);
+  assert.match(approve, /<domain:acID>melendez-reg<\/domain:acID>/);
   const transferred = await domains.findByName("lifecycle.melendez");
   assert.equal(transferred?.registrarId, "melendez-tester");
   assert.equal(transferred?.rgpStatus, "transferPeriod");
@@ -660,7 +660,7 @@ test("epp-20 transfer reject leaves the original sponsor", async () => {
   assert.match(rejected, /<domain:trStatus>clientRejected<\/domain:trStatus>/);
   assert.doesNotMatch(rejected, /<domain:trStatus>rejected<\/domain:trStatus>/);
   const domain = await domains.findByName("reject.melendez");
-  assert.equal(domain?.registrarId, "melendez-registrar");
+  assert.equal(domain?.registrarId, "melendez-reg");
   assert.ok(!domain?.statuses.includes("pendingTransfer"));
 });
 

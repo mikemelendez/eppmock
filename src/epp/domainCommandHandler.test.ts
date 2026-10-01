@@ -120,7 +120,7 @@ test("non-sponsoring registrar must present matching authInfo to request transfe
     session: {
       id: "gaining-session",
       authenticated: true,
-      clid: "melendez-registrar",
+      clid: "melendez-reg",
       connectedAt: new Date(),
       lastCommandAt: new Date()
     },

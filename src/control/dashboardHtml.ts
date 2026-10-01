@@ -721,7 +721,7 @@ export function dashboardHtml(): string {
                 <div class="help-list">
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-key"/></svg></span><span class="help-title">Authentication</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
-                    <div class="help-content"><p>The user selector is the EPP registrar for Auto login and the login template. Defaults: melendez-admin, melendez-registrar, melendez-tester. The dashboard talks to localhost EPP without TLS, so Auto login does not need a client certificate. Public EPP on TCP 700 still requires a client cert when fingerprints are set on EPP_USERS.</p></div>
+                    <div class="help-content"><p>The user selector is the EPP registrar for Auto login and the login template. Defaults: melendez-admin, melendez-reg, melendez-tester. The dashboard talks to localhost EPP without TLS, so Auto login does not need a client certificate. Public EPP on TCP 700 still requires a client cert when fingerprints are set on EPP_USERS.</p></div>
                   </details>
                   <details class="help-item">
                     <summary><span class="help-icon"><svg aria-hidden="true"><use href="#i-globe"/></svg></span><span class="help-title">Supported Domain Commands</span><svg class="help-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
@@ -868,7 +868,7 @@ export function dashboardHtml(): string {
     const nsec3Salt = $("nsec3Salt");
     let authUsers = [
       { clid: "melendez-admin", password: "admin-secret" },
-      { clid: "melendez-registrar", password: "registrar-secret" },
+      { clid: "melendez-reg", password: "registrar-secret" },
       { clid: "melendez-tester", password: "tester-secret" }
     ];
 

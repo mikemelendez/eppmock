@@ -11,7 +11,7 @@ function context(): CommandContext {
     session: {
       id: "test-session",
       authenticated: true,
-      clid: "melendez-registrar",
+      clid: "melendez-reg",
       connectedAt: new Date(),
       lastCommandAt: new Date()
     },

@@ -32,19 +32,19 @@ test("reclaims nic, miguel, and example when another registrar sponsors them", a
   const services = registry();
   await services.contacts.create({
     id: "EXA-001",
-    registrarId: "melendez-registrar",
+    registrarId: "melendez-reg",
     postalInfo: [{ type: "int", name: "Example", street: [], city: "Dulles", cc: "US" }],
     email: "jdoe@example.net"
   });
   await services.domains.ensureRegistered({
     name: "example.melendez",
-    registrarId: "melendez-registrar",
+    registrarId: "melendez-reg",
     registrantContact: "EXA-001",
     authInfo: "stolen"
   });
   await services.hosts.create({
     name: "ns1.example.melendez",
-    registrarId: "melendez-registrar",
+    registrarId: "melendez-reg",
     addresses: [{ ip: "192.0.2.1", version: "v4" }]
   });
 
@@ -156,7 +156,7 @@ test("registrars still cannot create reserved nic.melendez", async () => {
   await assert.rejects(() =>
     services.domains.create({
       name: "nic.melendez",
-      registrarId: "melendez-registrar",
+      registrarId: "melendez-reg",
       registrantContact: "NIC-001"
     })
   );

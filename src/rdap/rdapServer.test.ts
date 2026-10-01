@@ -45,13 +45,13 @@ async function buildApp(rdapRegistryPath?: string) {
 
   await domains.create({
     name: "example.melendez",
-    registrarId: "melendez-registrar",
+    registrarId: "melendez-reg",
     nameservers: ["ns1.example.melendez"],
     dsRecords: [{ keyTag: 1, algorithm: 13, digestType: 2, digest: "ABCDEF" }]
   });
   await hosts.create({
     name: "ns1.example.melendez",
-    registrarId: "melendez-registrar",
+    registrarId: "melendez-reg",
     addresses: [
       { ip: "192.0.2.1", version: "v4" },
       { ip: "2001:db8::1", version: "v6" }
@@ -59,7 +59,7 @@ async function buildApp(rdapRegistryPath?: string) {
   });
   await contacts.create({
     id: "sh8013",
-    registrarId: "melendez-registrar",
+    registrarId: "melendez-reg",
     email: "jdoe@example.melendez",
     postalInfo: [{ type: "int", name: "John Doe", street: ["123 St"], city: "Dulles", cc: "US" }]
   });
@@ -121,7 +121,7 @@ test("RDAP entity lookup resolves contacts and registrars", async () => {
     assert.equal(contact.statusCode, 200);
     assert.equal((contact.json() as Record<string, unknown>).objectClassName, "entity");
 
-    const registrar = await app.inject({ method: "GET", url: "/entity/melendez-registrar" });
+    const registrar = await app.inject({ method: "GET", url: "/entity/melendez-reg" });
     assert.equal(registrar.statusCode, 200);
     assert.deepEqual((registrar.json() as { roles: string[] }).roles, ["registrar"]);
   } finally {

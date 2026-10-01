@@ -14,7 +14,7 @@ function context(): CommandContext {
     session: {
       id: "s",
       authenticated: true,
-      clid: "melendez-registrar",
+      clid: "melendez-reg",
       connectedAt: new Date(),
       lastCommandAt: new Date()
     },
@@ -29,8 +29,8 @@ test("RGP: deleting an aged domain enters redemptionPeriod and can be restored",
   await repository.reset([
     {
       name: "aged.melendez",
-      registrarId: "melendez-registrar",
-      creatorId: "melendez-registrar",
+      registrarId: "melendez-reg",
+      creatorId: "melendez-reg",
       roid: "DAGED1-ICANNRST",
       periodYears: 1,
       statuses: ["ok"],
@@ -42,21 +42,21 @@ test("RGP: deleting an aged domain enters redemptionPeriod and can be restored",
     }
   ]);
 
-  const deleted = await service.deleteWithGrace("aged.melendez", "melendez-registrar");
+  const deleted = await service.deleteWithGrace("aged.melendez", "melendez-reg");
   assert.equal(deleted.hardDeleted, false);
   assert.equal(deleted.domain?.rgpStatus, "redemptionPeriod");
   assert.ok(deleted.domain?.statuses.includes("pendingDelete"));
 
-  const restored = await service.restore("aged.melendez", "melendez-registrar");
+  const restored = await service.restore("aged.melendez", "melendez-reg");
   assert.equal(restored.rgpStatus, "pendingRestore");
   assert.ok(!restored.statuses.includes("pendingDelete"));
 });
 
 test("RGP: deleting a freshly created domain purges it immediately", async () => {
   const service = new DomainService(new InMemoryDomainRepository());
-  await service.create({ name: "fresh.melendez", registrarId: "melendez-registrar" });
+  await service.create({ name: "fresh.melendez", registrarId: "melendez-reg" });
 
-  const deleted = await service.deleteWithGrace("fresh.melendez", "melendez-registrar");
+  const deleted = await service.deleteWithGrace("fresh.melendez", "melendez-reg");
   assert.equal(deleted.hardDeleted, true);
   assert.equal(await service.findByName("fresh.melendez"), null);
 });
@@ -68,8 +68,8 @@ test("RGP: domain:info exposes rgp:infData after redemption", async () => {
   await repository.reset([
     {
       name: "aged.melendez",
-      registrarId: "melendez-registrar",
-      creatorId: "melendez-registrar",
+      registrarId: "melendez-reg",
+      creatorId: "melendez-reg",
       roid: "DAGED1-ICANNRST",
       periodYears: 1,
       statuses: ["ok"],
@@ -80,7 +80,7 @@ test("RGP: domain:info exposes rgp:infData after redemption", async () => {
       expiresAt: "2030-01-01T00:00:00.000Z"
     }
   ]);
-  await service.deleteWithGrace("aged.melendez", "melendez-registrar");
+  await service.deleteWithGrace("aged.melendez", "melendez-reg");
 
   const infoXml = `<?xml version="1.0" encoding="UTF-8"?>
 <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
@@ -124,7 +124,7 @@ test("Launch: create with launch extension returns launch:creData with applicati
 
 test("Poll: queued message returns 1301 and ack dequeues it", async () => {
   const pollMessages = new PollMessageRepository();
-  pollMessages.enqueue({ registrarId: "melendez-registrar", text: "Transfer requested for x.melendez" });
+  pollMessages.enqueue({ registrarId: "melendez-reg", text: "Transfer requested for x.melendez" });
   const handler = new SystemCommandHandler({ greetingServerId: "epp-testing-tool" }, pollMessages);
 
   const reqXml = `<?xml version="1.0" encoding="UTF-8"?>
