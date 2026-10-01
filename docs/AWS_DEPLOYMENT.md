@@ -191,6 +191,7 @@ AWS_EC2_SSH_PORT=22
 RESET_HTTP_USER=admin
 RESET_HTTP_PASSWORD=<strong-password>
 EPP_USERS=[{"clid":"melendez-admin","password":"..."}]
+EPP_REPOSITORY_ID=ICANNRST
 DNSSEC_KEY_PATH=/app/data/dnssec-keys.json
 REGISTRY_TLD=melendez
 WHOIS_HOST=0.0.0.0
@@ -200,6 +201,10 @@ WHOIS_PORT=43
 `RESET_HTTP_PASSWORD` and `EPP_USERS` are required in production. The container runs with
 `NODE_ENV=production`, and startup fails if the reset password is still a default value or if
 `EPP_USERS` is omitted.
+
+`EPP_REPOSITORY_ID` is the ROID suffix (IANA EPP Repository Identifier). Keep `ICANNRST` for
+RSP evaluation / OT&E. For Pre-Delegation Testing it **must** be a TLD-specific id you
+registered with IANA (see `docs/RST_EPP.md`).
 
 `DNSSEC_KEY_PATH` should point inside `/app/data` so KSK/ZSK material survives container rebuilds.
 
