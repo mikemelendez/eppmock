@@ -3,6 +3,8 @@ import {
   assertCanRenew,
   assertCanTransferRequest,
   assertCanUpdate,
+  assertStatusDelta,
+  CLIENT_SETTABLE_DOMAIN_STATUSES,
   ObjectStatusProhibitsOperationError
 } from "../epp/objectStatusPolicy.js";
 import { DnssecPolicyError } from "../epp/dnssecPolicy.js";
@@ -106,7 +108,12 @@ export class DomainService {
     });
   }
 
-  async update(name: string, registrarId: string, input: UpdateDomainInput): Promise<DomainRecord> {
+  async update(
+    name: string,
+    registrarId: string,
+    input: UpdateDomainInput,
+    options?: { allowServerStatuses?: boolean }
+  ): Promise<DomainRecord> {
     const normalizedName = this.lookupName(name);
     const normalizedInput = normalizeUpdateInput(input);
     const existing = await this.repository.findByName(normalizedName);
@@ -121,6 +128,15 @@ export class DomainService {
       normalizedInput.nameserversToAdd
     );
     assertCanUpdate(existing.statuses, normalizedInput);
+
+    if (!options?.allowServerStatuses) {
+      assertClientDomainStatuses(normalizedInput.statusesToAdd);
+      assertClientDomainStatuses(normalizedInput.statusesToRemove);
+    }
+
+    assertStatusDelta(existing.statuses, normalizedInput.statusesToAdd, normalizedInput.statusesToRemove);
+    assertNameserverDelta(existing.nameservers, normalizedInput.nameserversToAdd, normalizedInput.nameserversToRemove);
+    assertDsDelta(existing.dsRecords, normalizedInput.dsRecordsToAdd, normalizedInput.dsRecordsToRemove);
     const domain = await this.repository.update(normalizedName, registrarId, normalizedInput);
 
     if (!domain) {
@@ -196,6 +212,10 @@ export class DomainService {
 
     if (!existing || existing.registrarId !== registrarId) {
       throw new DomainNotFoundOrUnauthorizedError(normalizedName);
+    }
+
+    if (!existing.expiresAt || Number.isNaN(new Date(existing.expiresAt).getTime())) {
+      throw new RegistryPolicyError(normalizedName, "expiration date is missing");
     }
 
     if (currentExpiry && !sameDate(existing.expiresAt, currentExpiry)) {
@@ -390,4 +410,52 @@ function normalizeUpdateInput(input: UpdateDomainInput): UpdateDomainInput {
 
 function normalizeHostNames(nameservers: string[] | undefined): string[] | undefined {
   return nameservers?.map(canonicalHostName);
+}
+
+function assertClientDomainStatuses(statuses: string[] | undefined): void {
+  for (const status of statuses ?? []) {
+    if (!CLIENT_SETTABLE_DOMAIN_STATUSES.has(status)) {
+      throw new RegistryPolicyError(status, "domain status is not client-settable");
+    }
+  }
+}
+
+function assertNameserverDelta(current: string[], toAdd: string[] | undefined, toRemove: string[] | undefined): void {
+  const present = new Set(current.map((name) => name.toLowerCase()));
+
+  for (const name of toAdd ?? []) {
+    if (present.has(name.toLowerCase())) {
+      throw new RegistryPolicyError(name, "nameserver is already associated with the domain");
+    }
+  }
+
+  for (const name of toRemove ?? []) {
+    if (!present.has(name.toLowerCase())) {
+      throw new RegistryPolicyError(name, "nameserver is not associated with the domain");
+    }
+  }
+}
+
+function assertDsDelta(
+  current: DomainRecord["dsRecords"],
+  toAdd: DomainRecord["dsRecords"] | undefined,
+  toRemove: DomainRecord["dsRecords"] | undefined
+): void {
+  const present = new Set(current.map(dsKey));
+
+  for (const record of toAdd ?? []) {
+    if (present.has(dsKey(record))) {
+      throw new DnssecPolicyError("DS record is already present");
+    }
+  }
+
+  for (const record of toRemove ?? []) {
+    if (!present.has(dsKey(record))) {
+      throw new DnssecPolicyError("DS record is not present");
+    }
+  }
+}
+
+function dsKey(record: DomainRecord["dsRecords"][number]): string {
+  return `${record.keyTag}:${record.algorithm}:${record.digestType}:${record.digest.toUpperCase()}`;
 }

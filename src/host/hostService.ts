@@ -2,6 +2,8 @@ import { canonicalHostName, RegistryPolicyError } from "../domain/registryPolicy
 import {
   assertCanDelete,
   assertCanUpdate,
+  assertStatusDelta,
+  CLIENT_SETTABLE_HOST_STATUSES,
   ObjectStatusProhibitsOperationError
 } from "../epp/objectStatusPolicy.js";
 import {
@@ -85,6 +87,10 @@ export class HostService {
 
     this.assertGlueAddresses([...(input.addressesToAdd ?? []), ...(input.addressesToRemove ?? [])]);
     assertCanUpdate(existing.statuses, input);
+    this.assertClientHostStatuses(input.statusesToAdd);
+    this.assertClientHostStatuses(input.statusesToRemove);
+    assertStatusDelta(existing.statuses, input.statusesToAdd, input.statusesToRemove);
+    this.assertAddressDelta(existing.addresses, input.addressesToAdd, input.addressesToRemove);
 
     if (input.newName) {
       return this.rename(existing, registrarId, input.newName);
@@ -141,7 +147,11 @@ export class HostService {
 
     await this.assertRenamePolicy(existing, registrarId, newName);
 
-    const renamed = await this.repository.update(existing.name, registrarId, { newName });
+    const outOfBailiwick = !this.superordinateDomain(newName);
+    const renamed = await this.repository.update(existing.name, registrarId, {
+      newName,
+      addressesToRemove: outOfBailiwick ? existing.addresses : undefined
+    });
 
     if (!renamed) {
       throw new HostNotFoundOrUnauthorizedError(existing.name);
@@ -225,6 +235,34 @@ export class HostService {
     );
   }
 
+  private assertClientHostStatuses(statuses: string[] | undefined): void {
+    for (const status of statuses ?? []) {
+      if (!CLIENT_SETTABLE_HOST_STATUSES.has(status)) {
+        throw new HostValidationError(`Host status ${status} is not client-settable`);
+      }
+    }
+  }
+
+  private assertAddressDelta(
+    current: HostAddress[],
+    toAdd: HostAddress[] | undefined,
+    toRemove: HostAddress[] | undefined
+  ): void {
+    const present = new Set(current.map(addressKey));
+
+    for (const address of toAdd ?? []) {
+      if (present.has(addressKey(address))) {
+        throw new HostValidationError(`glue address ${address.ip} is already associated with the host`);
+      }
+    }
+
+    for (const address of toRemove ?? []) {
+      if (!present.has(addressKey(address))) {
+        throw new HostValidationError(`glue address ${address.ip} is not associated with the host`);
+      }
+    }
+  }
+
   private assertGlueAddresses(addresses: HostAddress[]): void {
     for (const address of addresses) {
       if (!isUsableGlueAddress(address.ip, address.version)) {
@@ -244,4 +282,8 @@ export class HostService {
       throw error;
     }
   }
+}
+
+function addressKey(address: HostAddress): string {
+  return `${address.version}:${address.ip.toLowerCase()}`;
 }

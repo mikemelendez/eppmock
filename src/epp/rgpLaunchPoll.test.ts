@@ -119,6 +119,7 @@ test("Launch: create with launch extension returns launch:creData with applicati
   assert.match(response, /<launch:applicationID>/);
   assert.match(response, /<domain:creData[\s\S]*<domain:name>sunrise\.melendez<\/domain:name>/);
   assert.match(response, /<domain:crDate>[^<]+<\/domain:crDate>/);
+  assert.match(response, /<domain:exDate>[^<]+<\/domain:exDate>/);
 });
 
 test("Poll: queued message returns 1301 and ack dequeues it", async () => {

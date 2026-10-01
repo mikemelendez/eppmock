@@ -25,6 +25,7 @@ test("rejects names outside registry policy", () => {
     "whois.melendez",
     "www.melendez",
     "ab.melendez",
+    "xx--wvmpgrxixvphkiuowe.melendez",
     "nike.melendez",
     "mexico.melendez",
     "usa.melendez"
