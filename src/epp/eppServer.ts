@@ -6,6 +6,7 @@ import type { AppConfig } from "../config.js";
 import { isTlsEnabled } from "../config.js";
 import { EppFrameDecoder, encodeFrame } from "./framing.js";
 import { greeting, resultResponse } from "./responses.js";
+import { TlsWireCertGuard } from "./tlsWireCertGuard.js";
 import type { EppSession } from "./types.js";
 
 /**
@@ -69,6 +70,8 @@ const TEMP_DEBUG_CANONICAL_CHAIN_SHA256 = [
   "68b9c761219a5b1f0131784474665db61bbdb109e00f05ca9f74244ee5f5f52b" // USERTrust RSA Certification Authority (Comodo-issued)
 ];
 
+const TEMP_DEBUG_KNOWN_CHAIN_SHA256 = new Set(TEMP_DEBUG_CANONICAL_CHAIN_SHA256);
+
 export function startEppServer(config: AppConfig, router: EppRouter, options?: Partial<EppServerOptions>): net.Server {
   // options.tls=false is how the dashboard listener stays plaintext while EPP_PORT is TLS.
   const resolved: EppServerOptions = {
@@ -79,7 +82,11 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
     tls: options?.tls ?? isTlsEnabled(config)
   };
 
-  const onConnection = (socket: net.Socket): void => {
+  // TEMPORARY DEBUG: wire-inspect client Certificate (cleartext only on TLS 1.2).
+  // Production listener only — local tests keep TLS 1.2–1.3 via exitOnError=false.
+  const wireGuardEnabled = Boolean(resolved.tls && resolved.exitOnError);
+
+  const onSecureConnection = (socket: net.Socket): void => {
     const sessionId = randomUUID();
     const chain = resolved.tls ? collectPeerCertificateChain(socket) : [];
     const presented = chain[0]?.fingerprint256;
@@ -92,8 +99,9 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
         chain
       });
 
-      // TEMPORARY DEBUG: only enforce on the production listener (exitOnError default true).
-      // Loopback is ignored so local health checks still work without a client cert.
+      // TEMPORARY DEBUG: post-handshake filter for variations OpenSSL still exposes
+      // (leaf-only / alternate root / missing). Extraneous/unordered that OpenSSL
+      // normalizes are denied earlier by TlsWireCertGuard.
       if (resolved.exitOnError && !isLoopbackRemote(socket)) {
         const decision = temporaryDebugCertDecision(chain);
         if (!decision.accept) {
@@ -138,21 +146,8 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
   };
 
   const server = resolved.tls
-    ? tls.createServer(
-        {
-          cert: readFileSync(config.eppTlsCertPath as string),
-          key: readFileSync(config.eppTlsKeyPath as string),
-          ca: config.eppTlsCaPath ? readFileSync(config.eppTlsCaPath) : undefined,
-          requestCert: config.eppTlsRequireClientCert,
-          rejectUnauthorized: false,
-          minVersion: "TLSv1.2",
-          maxVersion: "TLSv1.3",
-          honorCipherOrder: true,
-          ciphers: RFC_9325_TLS12_CIPHERS
-        },
-        onConnection
-      )
-    : net.createServer(onConnection);
+    ? createTlsEppServer(config, resolved, wireGuardEnabled, onSecureConnection)
+    : net.createServer(onSecureConnection);
 
   server.on("error", (error: NodeJS.ErrnoException) => {
     const hint =
@@ -169,15 +164,66 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
   server.listen(resolved.port, resolved.host, () => {
     const mode = resolved.tls ? "TLS" : "TCP";
     console.log(`${resolved.label} listening on ${resolved.host}:${resolved.port} (${mode})`);
-    if (resolved.tls && resolved.exitOnError) {
+    if (wireGuardEnabled) {
       console.log(
-        `${resolved.label} TEMPORARY DEBUG accepting only normal RST client01/client02 chains;` +
-          ` rejecting leaf-only / unordered-root / extraneous / missing cert variations`
+        `${resolved.label} TEMPORARY DEBUG wire-denying RST extraneous/unordered client certs` +
+          ` (TLS 1.2 cleartext Certificate); post-handshake filter still rejects other variations`
       );
     }
   });
 
   return server;
+}
+
+/**
+ * Accept TCP, optionally wrap with TlsWireCertGuard, then complete TLS.
+ * maxVersion is forced to TLS 1.2 when the wire guard is on so the client
+ * Certificate message stays cleartext (TLS 1.3 encrypts it).
+ */
+function createTlsEppServer(
+  config: AppConfig,
+  resolved: EppServerOptions,
+  wireGuardEnabled: boolean,
+  onSecureConnection: (socket: tls.TLSSocket) => void
+): net.Server {
+  const tlsOptions: tls.TLSSocketOptions = {
+    cert: readFileSync(config.eppTlsCertPath as string),
+    key: readFileSync(config.eppTlsKeyPath as string),
+    ca: config.eppTlsCaPath ? readFileSync(config.eppTlsCaPath) : undefined,
+    requestCert: config.eppTlsRequireClientCert,
+    rejectUnauthorized: false,
+    minVersion: "TLSv1.2",
+    maxVersion: wireGuardEnabled ? "TLSv1.2" : "TLSv1.3",
+    honorCipherOrder: true,
+    ciphers: RFC_9325_TLS12_CIPHERS,
+    isServer: true
+  };
+
+  return net.createServer((rawSocket) => {
+    // Wire guard runs on every connection (including loopback). Empty client
+    // Certificate lists are allowed so local health checks still complete.
+    const transport = wireGuardEnabled
+      ? new TlsWireCertGuard(rawSocket, {
+          allowedLeafSha256: TEMP_DEBUG_ALLOWED_LEAF_SHA256,
+          knownChainSha256: TEMP_DEBUG_KNOWN_CHAIN_SHA256,
+          label: resolved.label
+        })
+      : rawSocket;
+
+    const tlsSocket = new tls.TLSSocket(transport, tlsOptions);
+
+    tlsSocket.once("secure", () => {
+      onSecureConnection(tlsSocket);
+    });
+
+    tlsSocket.on("error", (error) => {
+      // Expected when the wire guard destroys mid-handshake; avoid crashing.
+      if (wireGuardEnabled && /socket|ECONNRESET|closed|destroyed/i.test(String(error.message))) {
+        return;
+      }
+      console.error(`${resolved.label} TLS socket error`, error);
+    });
+  });
 }
 
 /** TEMPORARY DEBUG: normal client01/02 leaf + canonical 4-cert chain only. */
