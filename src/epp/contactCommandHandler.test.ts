@@ -88,10 +88,42 @@ test("contact create policy errors include the failing field", async () => {
   const voice = await handler().handle(parseEppXml(withVoice), context());
   assert.match(voice, /<result code="2005">/);
   assert.match(voice, /<reason>Contact voice is invalid<\/reason>/);
+  // RST schema requires <value> to contain a child element (not <value/>).
+  assert.match(voice, /<value>\s*<undef>Contact voice is invalid<\/undef>\s*<\/value>/);
+  assert.match(voice, /xmlns:xsi="http:\/\/www\.w3\.org\/2001\/XMLSchema-instance"/);
 
   const name = await handler().handle(parseEppXml(accentInt), context());
   assert.match(name, /<result code="2005">/);
   assert.match(name, /int postalInfo must contain ASCII characters only/);
+});
+
+test("contact create accepts RFC 5733 e164 voice with extension attribute", async () => {
+  // RST epp-07 sends +1.NNNNNNNNNN; fast-xml-parser must not coerce it to a float.
+  const contactHandler = handler();
+  const withE164 = createXml
+    .replace("sh8013", "sh8018")
+    .replace(
+      "</contact:postalInfo>",
+      `</contact:postalInfo>\n        <contact:voice x="3468">+1.2742995934</contact:voice>\n        <contact:fax x="0335">+1.9834563624</contact:fax>`
+    );
+
+  const created = await contactHandler.handle(parseEppXml(withE164), context());
+  assert.match(created, /<result code="1000">/);
+  assert.match(created, /xmlns:xsi="http:\/\/www\.w3\.org\/2001\/XMLSchema-instance"/);
+
+  const infoXml = `<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <info>
+      <contact:info xmlns:contact="urn:ietf:params:xml:ns:contact-1.0">
+        <contact:id>sh8018</contact:id>
+      </contact:info>
+    </info>
+  </command>
+</epp>`;
+  const info = await contactHandler.handle(parseEppXml(infoXml), context());
+  assert.match(info, /<contact:voice x="3468">\+1\.2742995934<\/contact:voice>/);
+  assert.match(info, /<contact:fax x="0335">\+1\.9834563624<\/contact:fax>/);
 });
 
 test("contact info for unknown id returns object does not exist", async () => {
