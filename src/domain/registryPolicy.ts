@@ -125,7 +125,25 @@ function canonicalizeLabel(label: string): string {
 }
 
 function isValidDnsLabel(label: string): boolean {
-  return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label);
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)) {
+    return false;
+  }
+
+  // Hyphens in positions 3 and 4 are reserved for A-labels (RFC 5890). "xx--" is not valid.
+  if (label.length >= 4 && label[2] === "-" && label[3] === "-") {
+    return isValidALabel(label);
+  }
+
+  return true;
+}
+
+function isValidALabel(label: string): boolean {
+  if (!label.startsWith("xn--")) {
+    return false;
+  }
+
+  const unicode = domainToUnicode(label);
+  return unicode.length > 0 && unicode !== label && !unicode.toLowerCase().startsWith("xn--");
 }
 
 /**
