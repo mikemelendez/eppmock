@@ -14,16 +14,11 @@ import {
 export const DEFAULT_REGISTRY_DOMAIN_NAMES = ["nic.melendez", "miguel.melendez", "example.melendez"] as const;
 
 /**
- * Sample contacts for RST `epp.registeredContacts` (check must return 1000 / avail=0).
- * Includes the common misconfigured 17-char ids (`melendez-contact1/2`) so existing
- * RST input keeps working; prefer ≤16-char ids (`melendez-ct1/2`) for new configs.
+ * Schema-valid (clIDType 3–16) sample contacts for RST `epp.registeredContacts`.
+ * Check must return 1000 / avail=0 with an echoable id. Do not use
+ * `melendez-contact1` (17 chars) — RST XSD-rejects that response.
  */
-export const DEFAULT_RST_REGISTERED_CONTACT_IDS = [
-  "melendez-ct1",
-  "melendez-ct2",
-  "melendez-contact1",
-  "melendez-contact2"
-] as const;
+export const DEFAULT_RST_REGISTERED_CONTACT_IDS = ["melendez-ct1", "melendez-ct2"] as const;
 
 const REGISTRAR = "melendez-admin";
 
@@ -165,15 +160,14 @@ async function ensureContact(contacts: ContactService, spec: DefaultDomainSpec):
   });
 }
 
-/** Seed RST `epp.registeredContacts` ids (avail=0), including overlong legacy ids. */
+/** Seed schema-valid RST `epp.registeredContacts` ids (check avail=0). */
 async function ensureRstRegisteredContacts(contacts: ContactService): Promise<void> {
   for (const id of DEFAULT_RST_REGISTERED_CONTACT_IDS) {
     await contacts.ensureSeeded({
       id,
       registrarId: REGISTRAR,
       postalInfo: [postal("int", "RST Sample Contact", "Monterrey", "NL", "64000", "MX", ["Av. RST 1"])],
-      // Local-part must stay ≤64; overlong ids use a short mailbox.
-      email: `rst-${id.slice(0, 12)}@nic.melendez`,
+      email: `${id}@nic.melendez`,
       voice: "+52.8180000099",
       authInfo: "contact-secret"
     });
