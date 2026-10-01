@@ -98,11 +98,16 @@ export async function ensureDefaultRegistry(services: DefaultRegistryServices): 
     );
 
     if (nameserversToAdd.length || dsToAdd.length || statusesToAdd.length) {
-      await services.domains.update(spec.name, REGISTRAR, {
-        nameserversToAdd,
-        dsRecordsToAdd: dsToAdd,
-        statusesToAdd
-      });
+      await services.domains.update(
+        spec.name,
+        REGISTRAR,
+        {
+          nameserversToAdd,
+          dsRecordsToAdd: dsToAdd,
+          statusesToAdd
+        },
+        { allowServerStatuses: true }
+      );
     }
   }
 }

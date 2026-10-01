@@ -91,7 +91,7 @@ test(
 
     assert.ok(updated);
     assert.deepEqual(updated?.addresses, [{ ip: "2001:db8::2", version: "v6" }]);
-    assert.deepEqual(updated?.statuses, ["ok", "clientUpdateProhibited"]);
+    assert.deepEqual(updated?.statuses, ["clientUpdateProhibited"]);
   })
 );
 

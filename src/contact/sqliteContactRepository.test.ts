@@ -87,7 +87,7 @@ test(
 
     assert.ok(updated);
     assert.equal(updated?.email, "new@example.com");
-    assert.deepEqual(updated?.statuses, ["ok", "clientUpdateProhibited"]);
+    assert.deepEqual(updated?.statuses, ["clientUpdateProhibited"]);
     assert.ok(updated?.updatedAt);
   })
 );

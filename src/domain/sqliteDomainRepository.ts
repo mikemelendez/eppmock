@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import Database from "better-sqlite3";
+import { normalizeObjectStatuses } from "../epp/objectStatusPolicy.js";
 import { allocateRoid } from "../epp/roid.js";
 import type {
   CreateDomainInput,
@@ -527,8 +528,7 @@ function dsKey(record: DomainRecord["dsRecords"][number]): string {
 }
 
 function normalizeStatuses(statuses: string[]): string[] {
-  const normalized = unique(statuses);
-  return normalized.length > 0 ? normalized : ["ok"];
+  return normalizeObjectStatuses(statuses);
 }
 
 function transferStatusFor(

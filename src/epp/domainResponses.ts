@@ -113,9 +113,11 @@ export function domainInfoResponse(domain: DomainRecord, transactionId?: string)
             "domain:clID": domain.registrarId,
             "domain:crID": domain.creatorId ?? domain.registrarId,
             "domain:crDate": domain.createdAt,
+            "domain:upID": domain.updatedAt ? domain.registrarId : undefined,
             "domain:upDate": domain.updatedAt,
+            "domain:exDate": domain.expiresAt,
             "domain:trDate": domain.transfer?.updatedAt,
-            "domain:exDate": domain.expiresAt
+            "domain:authInfo": domain.authInfo ? { "domain:pw": domain.authInfo } : undefined
           }
         },
         extension: buildInfoExtension(domain),
@@ -172,7 +174,7 @@ export function domainRestoreResponse(domain: DomainRecord, transactionId?: stri
 }
 
 export function domainLaunchCreateResponse(
-  domain: Pick<DomainRecord, "name" | "createdAt">,
+  domain: Pick<DomainRecord, "name" | "createdAt" | "expiresAt">,
   phase: string,
   applicationId: string,
   transactionId?: string
@@ -186,7 +188,8 @@ export function domainLaunchCreateResponse(
           "domain:creData": {
             ...domainAttributes,
             "domain:name": domain.name,
-            "domain:crDate": domain.createdAt
+            "domain:crDate": domain.createdAt,
+            "domain:exDate": domain.expiresAt
           }
         },
         extension: {

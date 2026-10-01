@@ -618,17 +618,28 @@ function namespacedValue(
     return undefined;
   }
 
-  const prefixes = namespacePrefixes(value, namespaceUri);
   const keys = Object.keys(value);
 
   for (const key of keys) {
+    if (key.startsWith("@_")) {
+      continue;
+    }
+
     const [prefix, local] = key.includes(":") ? key.split(":") : ["", key];
 
     if (local !== localName) {
       continue;
     }
 
-    if (prefixes.length === 0 || prefixes.includes(prefix) || prefix === "") {
+    const child = node(value[key]);
+    const declared = new Set([
+      ...namespacePrefixes(value, namespaceUri),
+      ...(child ? namespacePrefixes(child, namespaceUri) : [])
+    ]);
+
+    // Match only a prefix bound to this namespace. secDNS:create must not
+    // be treated as launch:create (that omitted exDate on ordinary creates).
+    if (declared.has(prefix) || (prefix === "" && value["@_xmlns"] === namespaceUri)) {
       return value[key];
     }
   }

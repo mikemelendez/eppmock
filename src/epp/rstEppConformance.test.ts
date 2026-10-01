@@ -680,3 +680,200 @@ test("epp-23 rename of a linked external host used by another registrar is 2305"
   );
   assert.equal(resultCode(rename), "2305");
 });
+
+test("epp-06 check of a provisioned overlong contact id is unavailable", async () => {
+  const repository = new InMemoryContactRepository();
+  await repository.create({
+    id: "melendez-contact1",
+    registrarId: "melendez-admin",
+    postalInfo: [{ type: "int", name: "RST", street: [], city: "LA", cc: "US" }],
+    email: "rst@example.net"
+  });
+  const contactHandler = new ContactCommandHandler(new ContactService(repository));
+  const response = await contactHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><check><contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>melendez-contact1</contact:id></contact:check></check></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(response), "1000");
+  assert.match(response, /<contact:id avail="0">melendez-contact1<\/contact:id>/);
+});
+
+test("epp-09 duplicate contact status add and rem of an absent status are 2304", async () => {
+  const { contactHandler } = registry();
+  await contactHandler.handle(parseEppXml(contactCreateXml("stc01")), ctx());
+  const add = `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><contact:update xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>stc01</contact:id><contact:add><contact:status s="clientDeleteProhibited"/></contact:add></contact:update></update></command></epp>`;
+  assert.equal(resultCode(await contactHandler.handle(parseEppXml(add), ctx())), "1000");
+  assert.equal(resultCode(await contactHandler.handle(parseEppXml(add), ctx())), "2304");
+  const remMissing = `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><contact:update xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>stc01</contact:id><contact:rem><contact:status s="clientUpdateProhibited"/></contact:rem></contact:update></update></command></epp>`;
+  assert.equal(resultCode(await contactHandler.handle(parseEppXml(remMissing), ctx())), "2304");
+  const info = await contactHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><info><contact:info xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>stc01</contact:id></contact:info></info></command></epp>`
+    ),
+    ctx()
+  );
+  assert.match(info, /<contact:status s="clientDeleteProhibited"/);
+  assert.doesNotMatch(info, /<contact:status s="ok"/);
+});
+
+test("epp-13 host update rejects invalid statuses and addresses that are not set", async () => {
+  const { hostHandler } = registry();
+  await hostHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><create><host:create xmlns:host="urn:ietf:params:xml:ns:host-1.0"><host:name>ns1.example.net</host:name><host:addr ip="v4">208.77.190.195</host:addr></host:create></create></command></epp>`
+    ),
+    ctx()
+  );
+  const remMissing = `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><host:update xmlns:host="urn:ietf:params:xml:ns:host-1.0"><host:name>ns1.example.net</host:name><host:rem><host:addr ip="v6">2602:800:900e:1257::3</host:addr></host:rem></host:update></update></command></epp>`;
+  assert.equal(resultCode(await hostHandler.handle(parseEppXml(remMissing), ctx())), "2005");
+  const clientHold = `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><host:update xmlns:host="urn:ietf:params:xml:ns:host-1.0"><host:name>ns1.example.net</host:name><host:add><host:status s="clientHold"/></host:add></host:update></update></command></epp>`;
+  assert.equal(resultCode(await hostHandler.handle(parseEppXml(clientHold), ctx())), "2005");
+  const addDelete = `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><host:update xmlns:host="urn:ietf:params:xml:ns:host-1.0"><host:name>ns1.example.net</host:name><host:add><host:status s="clientDeleteProhibited"/></host:add></host:update></update></command></epp>`;
+  assert.equal(resultCode(await hostHandler.handle(parseEppXml(addDelete), ctx())), "1000");
+  const remDelete = `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><host:update xmlns:host="urn:ietf:params:xml:ns:host-1.0"><host:name>ns1.example.net</host:name><host:rem><host:status s="clientDeleteProhibited"/></host:rem></host:update></update></command></epp>`;
+  assert.equal(resultCode(await hostHandler.handle(parseEppXml(remDelete), ctx())), "1000");
+});
+
+test("epp-14 secDNS create keeps exDate and does not emit launch data", async () => {
+  const { domainHandler, contactHandler } = registry();
+  await contactHandler.handle(parseEppXml(contactCreateXml("secdns01")), ctx());
+  const created = await domainHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><create><domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>secdnsonly.melendez</domain:name><domain:registrant>secdns01</domain:registrant><domain:authInfo><domain:pw>pw</domain:pw></domain:authInfo></domain:create></create><extension><secDNS:create xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1"><secDNS:dsData><secDNS:keyTag>12345</secDNS:keyTag><secDNS:alg>13</secDNS:alg><secDNS:digestType>2</secDNS:digestType><secDNS:digest>${SHA256}</secDNS:digest></secDNS:dsData></secDNS:create></extension></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(created), "1000");
+  assert.match(created, /<domain:exDate>/);
+  assert.doesNotMatch(created, /launch:creData/);
+  const invalid = await domainHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><create><domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>xx--notanalabel.melendez</domain:name><domain:authInfo><domain:pw>pw</domain:pw></domain:authInfo></domain:create></create></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(invalid), "2005");
+});
+
+test("epp-16 rejects server statuses, duplicate nameservers, and other registrars", async () => {
+  const { domainHandler, contactHandler, hostHandler } = registry();
+  await contactHandler.handle(parseEppXml(contactCreateXml("othc01")), ctx());
+  await hostHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><create><host:create xmlns:host="urn:ietf:params:xml:ns:host-1.0"><host:name>ns1.other.net</host:name></host:create></create></command></epp>`
+    ),
+    ctx()
+  );
+  await domainHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><create><domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>other.melendez</domain:name><domain:ns><domain:hostObj>ns1.other.net</domain:hostObj></domain:ns><domain:registrant>othc01</domain:registrant><domain:authInfo><domain:pw>pw</domain:pw></domain:authInfo></domain:create></create></command></epp>`
+    ),
+    ctx()
+  );
+  const dupNs = `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><domain:update xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>other.melendez</domain:name><domain:add><domain:ns><domain:hostObj>ns1.other.net</domain:hostObj></domain:ns></domain:add></domain:update></update></command></epp>`;
+  assert.equal(resultCode(await domainHandler.handle(parseEppXml(dupNs), ctx())), "2005");
+  const serverStatus = `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><domain:update xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>other.melendez</domain:name><domain:add><domain:status s="serverUpdateProhibited"/></domain:add></domain:update></update></command></epp>`;
+  assert.equal(resultCode(await domainHandler.handle(parseEppXml(serverStatus), ctx())), "2005");
+  const linked = `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><domain:update xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>other.melendez</domain:name><domain:add><domain:status s="linked"/></domain:add></domain:update></update></command></epp>`;
+  assert.equal(resultCode(await domainHandler.handle(parseEppXml(linked), ctx())), "2005");
+  const otherRegistrar = await domainHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><domain:update xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>other.melendez</domain:name><domain:add><domain:status s="clientHold"/></domain:add></domain:update></update></command></epp>`
+    ),
+    ctx("melendez-tester")
+  );
+  assert.equal(resultCode(otherRegistrar), "2201");
+});
+
+test("epp-19 info orders exDate before trDate and cancel clears pendingTransfer", async () => {
+  const { domainHandler, contactHandler } = registry();
+  await contactHandler.handle(parseEppXml(contactCreateXml("trnc01")), ctx());
+  const created = await domainHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><create><domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>transferord.melendez</domain:name><domain:registrant>trnc01</domain:registrant><domain:authInfo><domain:pw>secret-auth</domain:pw></domain:authInfo></domain:create></create></command></epp>`
+    ),
+    ctx()
+  );
+  assert.match(created, /<domain:exDate>/);
+  assert.equal(
+    resultCode(
+      await domainHandler.handle(
+        parseEppXml(
+          `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><transfer op="request"><domain:transfer xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>transferord.melendez</domain:name><domain:authInfo><domain:pw>secret-auth</domain:pw></domain:authInfo></domain:transfer></transfer></command></epp>`
+        ),
+        ctx("melendez-tester")
+      )
+    ),
+    "1000"
+  );
+  const info = await domainHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><info><domain:info xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>transferord.melendez</domain:name></domain:info></info></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(info), "1000");
+  assert.match(info, /<domain:authInfo>/);
+  const exDateAt = info.indexOf("<domain:exDate>");
+  const trDateAt = info.indexOf("<domain:trDate>");
+  assert.ok(exDateAt > 0 && trDateAt > exDateAt);
+  assert.equal(
+    resultCode(
+      await domainHandler.handle(
+        parseEppXml(
+          `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><transfer op="cancel"><domain:transfer xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>transferord.melendez</domain:name></domain:transfer></transfer></command></epp>`
+        ),
+        ctx("melendez-tester")
+      )
+    ),
+    "1000"
+  );
+});
+
+test("epp-23 rename into another registrar domain is 2201 and external rename drops glue", async () => {
+  const { domainHandler, contactHandler, hostHandler } = registry();
+  await contactHandler.handle(parseEppXml(contactCreateXml("renc02")), ctx("melendez-tester"));
+  await domainHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><create><domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>theirs.melendez</domain:name><domain:registrant>renc02</domain:registrant><domain:authInfo><domain:pw>pw</domain:pw></domain:authInfo></domain:create></create></command></epp>`
+    ),
+    ctx("melendez-tester")
+  );
+  await contactHandler.handle(parseEppXml(contactCreateXml("renc03")), ctx());
+  await domainHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><create><domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"><domain:name>mine.melendez</domain:name><domain:registrant>renc03</domain:registrant><domain:authInfo><domain:pw>pw</domain:pw></domain:authInfo></domain:create></create></command></epp>`
+    ),
+    ctx()
+  );
+  await hostHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><create><host:create xmlns:host="urn:ietf:params:xml:ns:host-1.0"><host:name>ns1.mine.melendez</host:name><host:addr ip="v4">208.77.190.230</host:addr></host:create></create></command></epp>`
+    ),
+    ctx()
+  );
+  const intoTheirs = await hostHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><host:update xmlns:host="urn:ietf:params:xml:ns:host-1.0"><host:name>ns1.mine.melendez</host:name><host:chg><host:name>ns1.theirs.melendez</host:name></host:chg></host:update></update></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(intoTheirs), "2201");
+  const external = await hostHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><update><host:update xmlns:host="urn:ietf:params:xml:ns:host-1.0"><host:name>ns1.mine.melendez</host:name><host:chg><host:name>ns1.epp-23.example.net</host:name></host:chg></host:update></update></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(external), "1000");
+  const info = await hostHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><info><host:info xmlns:host="urn:ietf:params:xml:ns:host-1.0"><host:name>ns1.epp-23.example.net</host:name></host:info></info></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(info), "1000");
+  assert.doesNotMatch(info, /<host:addr/);
+});

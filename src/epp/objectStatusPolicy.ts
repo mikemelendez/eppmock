@@ -81,3 +81,46 @@ export function assertCanRenew(statuses: string[]): void {
     throw new ObjectStatusProhibitsOperationError("renew");
   }
 }
+
+/** Statuses a client may add or remove on domain:update (RFC 5731 §2.3). */
+export const CLIENT_SETTABLE_DOMAIN_STATUSES = new Set([
+  "clientDeleteProhibited",
+  "clientHold",
+  "clientRenewProhibited",
+  "clientTransferProhibited",
+  "clientUpdateProhibited"
+]);
+
+/** Statuses a client may add or remove on host:update (RFC 5732 §2.3). */
+export const CLIENT_SETTABLE_HOST_STATUSES = new Set(["clientDeleteProhibited", "clientUpdateProhibited"]);
+
+/**
+ * RFC 5731/5732/5733: status "ok" is present only when no other status is set.
+ * Adding a status replaces ok; removing the last other status restores ok.
+ */
+export function normalizeObjectStatuses(statuses: string[]): string[] {
+  const normalized = [...new Set(statuses.map((value) => value.trim()).filter(Boolean))];
+  const withoutOk = normalized.filter((status) => status !== "ok");
+  return withoutOk.length > 0 ? withoutOk : ["ok"];
+}
+
+/** Reject add of a status already set and rem of a status that is not set. */
+export function assertStatusDelta(
+  current: string[],
+  toAdd: string[] | undefined,
+  toRemove: string[] | undefined
+): void {
+  const present = new Set(current);
+
+  for (const status of toAdd ?? []) {
+    if (present.has(status)) {
+      throw new ObjectStatusProhibitsOperationError("update");
+    }
+  }
+
+  for (const status of toRemove ?? []) {
+    if (!present.has(status)) {
+      throw new ObjectStatusProhibitsOperationError("update");
+    }
+  }
+}

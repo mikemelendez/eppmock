@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import Database from "better-sqlite3";
+import { normalizeObjectStatuses } from "../epp/objectStatusPolicy.js";
 import { allocateRoid } from "../epp/roid.js";
 import type {
   ContactPostalInfo,
@@ -255,6 +256,5 @@ function updateList(current: string[], toAdd: string[] = [], toRemove: string[] 
 }
 
 function normalizeStatuses(statuses: string[]): string[] {
-  const normalized = [...new Set(statuses.map((value) => value.trim()).filter(Boolean))];
-  return normalized.length > 0 ? normalized : ["ok"];
+  return normalizeObjectStatuses(statuses);
 }

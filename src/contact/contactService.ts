@@ -1,6 +1,7 @@
 import {
   assertCanDelete,
   assertCanUpdate,
+  assertStatusDelta,
   ObjectStatusProhibitsOperationError
 } from "../epp/objectStatusPolicy.js";
 import {
@@ -49,24 +50,34 @@ export class ContactService {
   ) {}
 
   async checkAvailability(ids: string[]): Promise<Array<{ id: string; available: boolean }>> {
-    // clIDType is maxLength 16 / minLength 3 — echoing out-of-range ids makes the
-    // check response schema-invalid (RST epp-06). Reject with 2005 instead.
+    // clIDType is maxLength 16 / minLength 3 — echoing unknown out-of-range ids
+    // makes the check response schema-invalid (RST epp-06). Reject those with
+    // 2005. Contacts already in the repository are reported avail=0 even when
+    // the stored id is longer than 16, so provisioned RST contacts still check.
+    const results: Array<{ id: string; available: boolean }> = [];
+
     for (const id of ids) {
-      if (!isSchemaCompatibleContactId(id)) {
+      const existing = await this.repository.findById(id);
+
+      if (!isSchemaCompatibleContactId(id) && !existing) {
         throw new ContactValidationError("Contact id is not a valid clIDType");
       }
+
+      if (existing) {
+        results.push({ id: existing.id, available: false });
+        continue;
+      }
+
+      if (!isValidContactId(id)) {
+        results.push({ id, available: false });
+        continue;
+      }
+
+      const [result] = await this.repository.checkAvailability([id]);
+      results.push(result ?? { id, available: true });
     }
 
-    return Promise.all(
-      ids.map(async (id) => {
-        if (!isValidContactId(id)) {
-          return { id, available: false };
-        }
-
-        const [result] = await this.repository.checkAvailability([id]);
-        return result ?? { id, available: true };
-      })
-    );
+    return results;
   }
 
   async create(input: CreateContactInput): Promise<ContactRecord> {
@@ -95,8 +106,9 @@ export class ContactService {
       throw new ContactNotFoundOrUnauthorizedError(id);
     }
 
-    validateUpdateInput(input);
     assertCanUpdate(existing.statuses, input);
+    validateUpdateInput(input);
+    assertStatusDelta(existing.statuses, input.statusesToAdd, input.statusesToRemove);
 
     const merged: UpdateContactInput = {
       ...input,
