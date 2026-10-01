@@ -21,8 +21,9 @@ Use these RST input parameters:
 | `epp.requiredContactTypes` | `[]` (registrant is required; admin/tech/billing are optional) |
 | `epp.secDNSInterfaces` | `dsData` |
 | `epp.supportedContactPostalInfoTypes` | `both` |
-| `epp.clid01` / `epp.clid02` | `melendez-registrar` / `melendez-tester` (or any two distinct `EPP_USERS` clIDs) |
-| `epp.registeredNames` | one existing domain **not** sponsored by those two clients (create it as `melendez-admin`) |
+| `epp.clid01` / `epp.clid02` | Must match two `EPP_USERS` clIDs that each have `clientCertSha256` for client01 / client02. Your RST run 7 used `melendez-admin` as clid01 — then client01’s fingerprint **must** be on `melendez-admin`. Alternatively use `melendez-registrar` / `melendez-tester` and put the fingerprints there. |
+| `epp.pwd01` / `epp.pwd02` | Must match the `password` fields for those clIDs in the GitHub `EPP_USERS` secret |
+| `epp.registeredNames` | one existing domain **not** sponsored by clid01/clid02 (if clid01 is `melendez-admin`, seed that domain as `melendez-registrar` instead) |
 
 ## Protocol coverage (implemented here)
 
@@ -55,14 +56,25 @@ Do **not** proxy EPP through Caddy. Details: `docs/AWS_DEPLOYMENT.md`.
 | Case | Status / what remains |
 | --- | --- |
 | epp-01 | Public `A` + TCP 700 + browser-trusted SAN are in place. Optionally add `AAAA`. When ICANN publishes `epp.clientACL`, restrict SG 700 to those IPs. Each TLS connect logs the peer leaf/chain (`TLS client cert session=…`) so RST normal / unordered / extraneous presentations are visible in app logs. |
-| epp-03 | Put RST client-cert SHA-256 fingerprints on `melendez-registrar` / `melendez-tester` in GitHub `EPP_USERS` (`./deploy/fingerprint-cert.sh client.pem`), then redeploy. Until then, greeting on 700 works; TLS login is rejected. Dashboard login does not need a client cert. |
+| epp-03 | Put RST client01/client02 SHA-256 fingerprints on the **same** clIDs as `epp.clid01` / `epp.clid02` in GitHub `EPP_USERS` (`./deploy/fingerprint-cert.sh client.pem`), then redeploy. If clid01 is `melendez-admin`, admin must carry client01’s fingerprint — otherwise valid login returns 2200 (`EPP_LOGIN_UNEXPECTEDLY_FAILED`). Dashboard plaintext login does not need a client cert. |
 | epp-17 | One instance must serve every `A`/`AAAA` (no second proxy in front of 700). |
 
-Example `EPP_USERS` after ICANN issues certs (keep the passwords you already use):
+Example `EPP_USERS` when RST `epp.clid01=melendez-admin` and `epp.clid02=melendez-tester` (passwords must match `epp.pwd01` / `epp.pwd02`):
 
+```json
+[
+  {"clid":"melendez-admin","password":"<epp.pwd01>","clientCertSha256":"<client01 sha256 hex>"},
+  {"clid":"melendez-tester","password":"<epp.pwd02>","clientCertSha256":"<client02 sha256 hex>"},
+  {"clid":"melendez-registrar","password":"..."}
+]
 ```
-[{"clid":"melendez-admin","password":"..."},{"clid":"melendez-registrar","password":"...","clientCertSha256":"..."},{"clid":"melendez-tester","password":"...","clientCertSha256":"..."}]
-```
+
+Known RST QA leaf fingerprints (from production TLS logs):
+
+- client01: `186f14d5dd016c97bee0d44ccf705af720897aef724824049c8dd9f027e8106b`
+- client02: `4349d0f567d1f9b12f7609fc4e885089021a519e64c3200ef3b6441959186cf8`
+
+After deploy, app logs show `EPP TLS client-cert binding: …` and login attempts log `EPP login ok` / `EPP login rejected reason=…`.
 
 `ICANNRST` is the IANA repository id reserved for RST / RSP evaluation. Do **not**
 use it on a production pre/post-delegation test; register a TLD-specific id.

@@ -144,6 +144,77 @@ test("epp-03 rejects unknown client and wrong password", async () => {
   assert.equal(resultCode(badPw), "2200");
 });
 
+test("epp-03 TLS login binds client01 cert to epp.clid01 (melendez-admin)", async () => {
+  const client01 = "186f14d5dd016c97bee0d44ccf705af720897aef724824049c8dd9f027e8106b";
+  const client02 = "4349d0f567d1f9b12f7609fc4e885089021a519e64c3200ef3b6441959186cf8";
+  const wrongCert = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const handler = new AuthCommandHandler({
+    authUsers: [
+      { clid: "melendez-admin", password: "admin-secret", clientCertSha256: client01 },
+      { clid: "melendez-tester", password: "tester-secret", clientCertSha256: client02 },
+      { clid: "melendez-registrar", password: "registrar-secret" }
+    ],
+    eppTlsRequireClientCert: true
+  });
+
+  const login = (clid: string, password: string, cert?: string): Promise<string> =>
+    handler.handle(
+      parseEppXml(
+        `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><login><clID>${clid}</clID><pw>${password}</pw><options><version>1.0</version><lang>en</lang></options><svcs><objURI>urn:ietf:params:xml:ns:domain-1.0</objURI></svcs></login></command></epp>`
+      ),
+      {
+        session: {
+          id: "epp-03",
+          authenticated: false,
+          tls: true,
+          clientCertSha256: cert,
+          connectedAt: new Date(),
+          lastCommandAt: new Date()
+        },
+        rawXml: "",
+        transactionId: "epp-03"
+      }
+    );
+
+  assert.equal(resultCode(await login("nobody", "x", client01)), "2200");
+  assert.equal(resultCode(await login("melendez-admin", "wrong", client01)), "2200");
+  assert.equal(resultCode(await login("melendez-admin", "admin-secret", wrongCert)), "2200");
+  assert.equal(resultCode(await login("melendez-admin", "admin-secret", client02)), "2200");
+  assert.equal(resultCode(await login("melendez-admin", "admin-secret")), "2200");
+  assert.equal(resultCode(await login("melendez-admin", "admin-secret", client01)), "1000");
+});
+
+test("epp-03 TLS login fails when epp.clid01 has no clientCertSha256", async () => {
+  const client01 = "186f14d5dd016c97bee0d44ccf705af720897aef724824049c8dd9f027e8106b";
+  const handler = new AuthCommandHandler({
+    authUsers: [
+      { clid: "melendez-admin", password: "admin-secret" },
+      { clid: "melendez-registrar", password: "registrar-secret", clientCertSha256: client01 }
+    ],
+    eppTlsRequireClientCert: true
+  });
+
+  const response = await handler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><login><clID>melendez-admin</clID><pw>admin-secret</pw><options><version>1.0</version><lang>en</lang></options><svcs><objURI>urn:ietf:params:xml:ns:domain-1.0</objURI></svcs></login></command></epp>`
+    ),
+    {
+      session: {
+        id: "epp-03-misconfig",
+        authenticated: false,
+        tls: true,
+        clientCertSha256: client01,
+        connectedAt: new Date(),
+        lastCommandAt: new Date()
+      },
+      rawXml: "",
+      transactionId: "epp-03-misconfig"
+    }
+  );
+  // client01 is bound to melendez-registrar, so admin+client01 is "other registrar".
+  assert.equal(resultCode(response), "2200");
+});
+
 test("logout returns 1500", async () => {
   const handler = new AuthCommandHandler({ authUsers: defaultAuthUsers, eppTlsRequireClientCert: false });
   const response = await handler.handle(

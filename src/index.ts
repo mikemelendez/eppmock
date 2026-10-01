@@ -38,6 +38,23 @@ import { ensureDefaultRegistry } from "./registry/defaultRegistry.js";
 const config = loadConfig();
 setRepositoryId(config.repositoryId);
 
+if (config.eppTlsRequireClientCert) {
+  const bound = config.authUsers.filter((user) => user.clientCertSha256);
+  const unbound = config.authUsers.filter((user) => !user.clientCertSha256).map((user) => user.clid);
+  console.log(
+    `EPP TLS client-cert binding: ${bound.length} user(s) with clientCertSha256` +
+      (bound.length
+        ? ` (${bound.map((user) => `${user.clid}=${user.clientCertSha256?.slice(0, 12)}…`).join(", ")})`
+        : "")
+  );
+  if (unbound.length > 0) {
+    console.warn(
+      `EPP TLS login will fail for users without clientCertSha256 when a client cert is required: ${unbound.join(", ")}.` +
+        ` RST epp-03 expects client01's fingerprint on epp.clid01 (see docs/RST_EPP.md).`
+    );
+  }
+}
+
 const useSqlite = config.storageMode === "sqlite";
 
 const domainRepository: DomainRepository = useSqlite

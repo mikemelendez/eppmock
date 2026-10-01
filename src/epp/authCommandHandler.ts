@@ -12,6 +12,10 @@ import {
 } from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
 
+type CertDecision =
+  | { accept: true }
+  | { accept: false; reason: string; detail?: string };
+
 export class AuthCommandHandler implements CommandHandler {
   constructor(private readonly config: Pick<AppConfig, "authUsers" | "eppTlsRequireClientCert">) {}
 
@@ -62,38 +66,59 @@ export class AuthCommandHandler implements CommandHandler {
     const user = this.config.authUsers.find((authUser) => authUser.clid === clid);
 
     if (!user || password !== user.password) {
+      console.log(
+        `EPP login rejected session=${context.session.id} clid=${clid ?? "(none)"}` +
+          ` reason=${user ? "bad-password" : "unknown-clid"} tls=${context.session.tls}`
+      );
       return authenticationError(context.transactionId);
     }
 
-    if (!this.clientCertificateAccepted(user, context)) {
+    const certDecision = this.clientCertificateDecision(user, context);
+    if (!certDecision.accept) {
+      console.log(
+        `EPP login rejected session=${context.session.id} clid=${clid}` +
+          ` reason=${certDecision.reason}` +
+          (certDecision.detail ? ` ${certDecision.detail}` : "") +
+          ` tls=${context.session.tls}` +
+          ` presented=${normalizeFingerprint(context.session.clientCertSha256) ?? "(none)"}` +
+          ` expected=${normalizeFingerprint(user.clientCertSha256) ?? "(none)"}`
+      );
       return authenticationError(context.transactionId);
     }
 
     context.session.authenticated = true;
     context.session.clid = clid;
+    console.log(
+      `EPP login ok session=${context.session.id} clid=${clid} tls=${context.session.tls}` +
+        ` cert=${normalizeFingerprint(context.session.clientCertSha256) ?? "(none)"}`
+    );
     return commandCompleted(context.transactionId);
   }
 
-  private clientCertificateAccepted(
+  private clientCertificateDecision(
     user: { clid: string; clientCertSha256?: string },
     context: CommandContext
-  ): boolean {
+  ): CertDecision {
     // Plaintext (dashboard) sessions skip cert binding. TLS sessions follow epp-03.
     if (!context.session.tls) {
-      return true;
+      return { accept: true };
     }
 
     const requireCert = this.config.eppTlsRequireClientCert;
     const anyMappedCert = this.config.authUsers.some((authUser) => authUser.clientCertSha256);
 
     if (!requireCert && !anyMappedCert) {
-      return true;
+      return { accept: true };
     }
 
     const presented = normalizeFingerprint(context.session.clientCertSha256);
 
     if (!presented) {
-      return !requireCert && !anyMappedCert;
+      return {
+        accept: false,
+        reason: "missing-client-cert",
+        detail: "TLS login requires a client certificate"
+      };
     }
 
     const owner = this.config.authUsers.find(
@@ -101,20 +126,34 @@ export class AuthCommandHandler implements CommandHandler {
     );
 
     if (owner && owner.clid !== user.clid) {
-      return false;
+      return {
+        accept: false,
+        reason: "client-cert-bound-to-other-clid",
+        detail: `cert belongs to ${owner.clid}`
+      };
     }
 
     const expected = normalizeFingerprint(user.clientCertSha256);
 
     if (expected && expected !== presented) {
-      return false;
+      return {
+        accept: false,
+        reason: "client-cert-mismatch",
+        detail: "presented fingerprint does not match this clid"
+      };
     }
 
+    // requireCert with no fingerprint on this user and an unmapped cert: reject.
+    // RST epp-03 step 6 needs clientCertSha256 on epp.clid01 (often melendez-admin).
     if (requireCert && !expected && !owner) {
-      return false;
+      return {
+        accept: false,
+        reason: "clid-missing-clientCertSha256",
+        detail: "set clientCertSha256 on this EPP_USERS entry to the RST client01 fingerprint"
+      };
     }
 
-    return true;
+    return { accept: true };
   }
 }
 

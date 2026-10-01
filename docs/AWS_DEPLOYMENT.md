@@ -76,24 +76,26 @@ openssl s_client -connect eppmock.melendez.mx:700 -tls1_1
 
 ### 4. RST registrar certificates (epp-03)
 
-ICANN gives you `epp.client01Certificate` / `epp.client02Certificate` (or CSRs). Put each SHA-256 fingerprint on `melendez-registrar` and `melendez-tester` in the GitHub `EPP_USERS` secret (those are `epp.clid01` / `epp.clid02`):
+ICANN gives you `epp.client01Certificate` / `epp.client02Certificate` (or CSRs). Put each SHA-256 fingerprint on the **same** accounts you configured as `epp.clid01` / `epp.clid02` in the GitHub `EPP_USERS` secret:
 
 ```bash
 chmod +x deploy/fingerprint-cert.sh
 ./deploy/fingerprint-cert.sh client01.pem
 ```
 
-Example `EPP_USERS` secret:
+If RST uses `epp.clid01=melendez-admin` (as in run 7), client01’s fingerprint must be on `melendez-admin` or the final epp-03 login returns 2200.
+
+Example `EPP_USERS` secret for that layout:
 
 ```json
 [
-  {"clid":"melendez-admin","password":"..."},
-  {"clid":"melendez-registrar","password":"...","clientCertSha256":"ab12..."},
-  {"clid":"melendez-tester","password":"...","clientCertSha256":"cd34..."}
+  {"clid":"melendez-admin","password":"<epp.pwd01>","clientCertSha256":"186f14d5dd016c97bee0d44ccf705af720897aef724824049c8dd9f027e8106b"},
+  {"clid":"melendez-tester","password":"<epp.pwd02>","clientCertSha256":"4349d0f567d1f9b12f7609fc4e885089021a519e64c3200ef3b6441959186cf8"},
+  {"clid":"melendez-registrar","password":"..."}
 ]
 ```
 
-Seed `epp.registeredNames` with a domain **not** sponsored by those two clients (create it as `melendez-admin` from the dashboard).
+Seed `epp.registeredNames` with a domain **not** sponsored by clid01/clid02 (if admin is clid01, create that domain as `melendez-registrar`).
 
 Smoke-test TLS login before ICANN issues certs with a throwaway client cert:
 
