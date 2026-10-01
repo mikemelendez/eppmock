@@ -36,7 +36,7 @@ Use these RST input parameters:
 | epp-08 / epp-12 | Non-sponsoring clients get `2201` on contact/host info and update |
 | epp-10 / epp-24 | Delete returns `1000` and a later info is `2303` |
 | epp-11 / epp-13 | Internal hosts need a superordinate domain + public glue; external hosts may be glueless; `v5`/empty/loopback/`::1` rejected |
-| epp-14 | Domain create requires registrant, host **objects** (not attributes), existing hosts/contacts, period 1–10y, valid DS; info has `roid`/`clID`/`crID` |
+| epp-14 | Domain create requires registrant, host **objects** (not attributes), existing hosts/contacts, period 1–10y, valid DS; info has `roid`/`clID`/`crID`. ROID repository suffix must be IANA-registered — see below |
 | epp-15 | Linked contact/host delete returns `2305` |
 | epp-16 | Domain update of NS/status/DS; other registrar gets `2201` |
 | epp-18 | Renew extends expiry, sets `renewPeriod`, rejects expiry more than 10 years ahead; `curExpDate` must match when present |
@@ -65,8 +65,27 @@ Example `EPP_USERS` after ICANN issues certs (keep the passwords you already use
 [{"clid":"melendez-admin","password":"..."},{"clid":"melendez-registrar","password":"...","clientCertSha256":"..."},{"clid":"melendez-tester","password":"...","clientCertSha256":"..."}]
 ```
 
-`ICANNRST` is the IANA repository id reserved for RST / RSP evaluation. Do **not**
-use it on a production pre/post-delegation test; register a TLD-specific id.
+### EPP repository ID (`EPP_REPOSITORY_ID`) — required for epp-14
+
+ROIDs look like `D8E5CF8F8ACD1-ICANNRST`. The suffix after `-` must appear in the
+[IANA EPP Repository Identifiers](https://www.iana.org/assignments/epp-repository-ids/)
+registry. RST returns `EPP_DOMAIN_CREATE_INFO_RESPONSE_INVALID_ROID` when it does not.
+
+| Test plan | Repository ID |
+| --- | --- |
+| **RSP evaluation / OT&E / EPP-only** | Default `ICANNRST` is IANA-registered and **MAY** be used ([RST §2.8](https://icann.github.io/rst-test-specs/v2026.07/rst-test-specs.html)) |
+| **Pre-Delegation / post-delegation (production)** | `ICANNRST` **MUST NOT** be used. Register your own id (≤8 letters/digits) with IANA (FCFS), then set the GitHub Actions / deploy secret and redeploy |
+
+```bash
+# Example after IANA registers MELENDEZ for you:
+EPP_REPOSITORY_ID=MELENDEZ
+```
+
+New objects pick up the new suffix immediately after redeploy. Existing SQLite rows
+keep their old ROIDs until recreated.
+
+IANA registration template: [epp-repository-ids](https://www.iana.org/assignments/epp-repository-ids/)
+(send the request to IANA; include ID + hex form, e.g. `MELENDEZ, #x004D #x0045 #x004C #x0045 #x004E #x0044 #x0045 #x005A`).
 
 ## Intentionally not implemented
 
