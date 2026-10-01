@@ -42,6 +42,8 @@ services:
       EPP_TLS_CERT: /app/certs/fullchain.pem
       EPP_TLS_KEY: /app/certs/privkey.pem
       EPP_TLS_REQUIRE_CLIENT_CERT: "true"
+      # true (default) = accept cert chain variations. false = TEMPORARY DEBUG reject path.
+      TRUST_CERT_VARIATIONS: "${TRUST_CERT_VARIATIONS:-true}"
       CADDY_CERTS_ROOT: /caddy-data/caddy/certificates
       EPP_CERT_DIR: /app/certs
     volumes:

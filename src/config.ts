@@ -42,7 +42,13 @@ const configSchema = z.object({
   eppTlsCertPath: z.string().optional(),
   eppTlsKeyPath: z.string().optional(),
   eppTlsCaPath: z.string().optional(),
-  eppTlsRequireClientCert: z.boolean().default(false)
+  eppTlsRequireClientCert: z.boolean().default(false),
+  /**
+   * When true (default), accept client-cert chain variations (RFC 8446).
+   * When false, TEMPORARY DEBUG rejects non-canonical / extraneous / unordered
+   * presentations so RST epp-01 REJECTS_* cases can be exercised.
+   */
+  trustCertVariations: z.boolean().default(true)
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -76,7 +82,8 @@ export function loadConfig(env = process.env): AppConfig {
     eppTlsRequireClientCert: parseBool(
       env.EPP_TLS_REQUIRE_CLIENT_CERT,
       Boolean(env.EPP_TLS_CERT && env.EPP_TLS_KEY)
-    )
+    ),
+    trustCertVariations: parseBool(env.TRUST_CERT_VARIATIONS, true)
   });
 
   validateProductionConfig(config, env);

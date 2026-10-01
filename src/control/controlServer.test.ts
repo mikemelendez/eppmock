@@ -272,6 +272,7 @@ function testConfig(dnssecKeyPath: string, overrides: Partial<AppConfig> = {}): 
     rdapRegistryPath: join(tmpdir(), "rdap-registry-test.json"),
     repositoryId: "ICANNRST",
     eppTlsRequireClientCert: false,
+    trustCertVariations: true,
     ...overrides
   };
 }
