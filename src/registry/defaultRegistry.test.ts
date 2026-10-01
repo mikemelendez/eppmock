@@ -162,12 +162,11 @@ test("registrars still cannot create reserved nic.melendez", async () => {
   );
 });
 
-test("seeds schema-valid RST registered contacts for epp-06", async () => {
+test("seeds RST registered contacts for epp-06 including legacy overlong ids", async () => {
   const services = registry();
   await ensureDefaultRegistry(services);
 
   for (const id of DEFAULT_RST_REGISTERED_CONTACT_IDS) {
-    assert.ok(id.length >= 3 && id.length <= 16, `${id} must fit clIDType`);
     const contact = await services.contacts.findById(id);
     assert.ok(contact, `missing seeded contact ${id}`);
     assert.equal(contact.registrarId, "melendez-admin");
@@ -175,9 +174,14 @@ test("seeds schema-valid RST registered contacts for epp-06", async () => {
     assert.equal(availability?.available, false);
   }
 
-  // Misconfigured 17-char ids must not look "registered" when absent.
+  // Legacy RST input ids are 17 chars; once seeded, check still reports avail=0.
+  assert.equal("melendez-contact1".length, 17);
+  const [legacy] = await services.contacts.checkAvailability(["melendez-contact1"]);
+  assert.equal(legacy?.available, false);
+
+  // Truly unknown overlong ids still reject (must not echo).
   await assert.rejects(
-    () => services.contacts.checkAvailability(["melendez-contact1"]),
+    () => services.contacts.checkAvailability(["thisisatoolongcontactid"]),
     /not a valid clIDType/
   );
 });

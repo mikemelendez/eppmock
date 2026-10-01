@@ -316,7 +316,7 @@ export function objectNotAuthorized(transactionId?: string): string {
 }
 
 export function parameterValuePolicyError(transactionId?: string): string {
-  return domainErrorResponse(2005, "Parameter value policy error", transactionId);
+  return domainErrorResponse(2005, "Parameter value syntax error", transactionId);
 }
 
 export function requiredParameterMissing(transactionId?: string): string {

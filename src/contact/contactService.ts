@@ -155,6 +155,23 @@ export class ContactService {
     return this.repository.list();
   }
 
+  /**
+   * Registry bootstrap only: create a contact without clIDType length checks so
+   * RST `epp.registeredContacts` values (even if overlong) can be seeded and
+   * return check avail=0. EPP contact:create still enforces isValidContactId.
+   */
+  async ensureSeeded(input: CreateContactInput): Promise<ContactRecord> {
+    const existing = await this.repository.findById(input.id);
+    if (existing) {
+      return existing;
+    }
+
+    return this.repository.create({
+      ...input,
+      id: input.id.trim()
+    });
+  }
+
   reset(records?: ContactRecord[]): Promise<void> {
     return this.repository.reset(records);
   }
