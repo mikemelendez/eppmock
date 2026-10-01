@@ -34,6 +34,8 @@ export interface HostRepository {
   findByName(name: string): Promise<HostRecord | null>;
   update(name: string, registrarId: string, input: UpdateHostInput): Promise<HostRecord | null>;
   delete(name: string, registrarId: string): Promise<boolean>;
+  /** Point a host at a registrar. Used to restore seeded glue hosts. */
+  setSponsor(name: string, registrarId: string): Promise<HostRecord | null>;
   list(): Promise<HostRecord[]>;
   reset(records?: HostRecord[]): Promise<void>;
 }

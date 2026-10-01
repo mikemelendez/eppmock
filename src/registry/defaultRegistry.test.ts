@@ -24,6 +24,35 @@ function registry() {
   return { domains, contacts, hosts };
 }
 
+test("reclaims nic, miguel, and example when another registrar sponsors them", async () => {
+  const services = registry();
+  await services.contacts.create({
+    id: "EXA-001",
+    registrarId: "melendez-registrar",
+    postalInfo: [{ type: "int", name: "Example", street: [], city: "Dulles", cc: "US" }],
+    email: "jdoe@example.net"
+  });
+  await services.domains.ensureRegistered({
+    name: "example.melendez",
+    registrarId: "melendez-registrar",
+    registrantContact: "EXA-001",
+    authInfo: "stolen"
+  });
+  await services.hosts.create({
+    name: "ns1.example.melendez",
+    registrarId: "melendez-registrar",
+    addresses: [{ ip: "192.0.2.1", version: "v4" }]
+  });
+
+  await ensureDefaultRegistry(services);
+
+  const domain = await services.domains.findByName("example.melendez");
+  const host = await services.hosts.findByName("ns1.example.melendez");
+  assert.equal(domain?.registrarId, "melendez-admin");
+  assert.equal(host?.registrarId, "melendez-admin");
+  assert.ok(!domain?.statuses.includes("pendingTransfer"));
+});
+
 test("seeds nic, miguel, and example with glue, DS, and a signed zone", async () => {
   const services = registry();
   await ensureDefaultRegistry(services);

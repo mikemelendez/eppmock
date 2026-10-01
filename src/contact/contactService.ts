@@ -50,21 +50,25 @@ export class ContactService {
   ) {}
 
   async checkAvailability(ids: string[]): Promise<Array<{ id: string; available: boolean }>> {
-    // clIDType is maxLength 16 / minLength 3 — echoing unknown out-of-range ids
-    // makes the check response schema-invalid (RST epp-06). Reject those with
-    // 2005. Contacts already in the repository are reported avail=0 even when
-    // the stored id is longer than 16, so provisioned RST contacts still check.
+    // clIDType is maxLength 16 / minLength 3. Unknown ids outside that range
+    // must not be echoed (RST epp-06 accepts 2005 when the command is only
+    // those ids). A mixed check still returns 1000 for the echoable ids so a
+    // registered or candidate id is not failed by a sibling invalid id.
+    // Contacts already stored are reported avail=0 even when the id is longer
+    // than 16.
     const results: Array<{ id: string; available: boolean }> = [];
+    let sawUnknownOutOfRange = false;
 
     for (const id of ids) {
       const existing = await this.repository.findById(id);
 
-      if (!isSchemaCompatibleContactId(id) && !existing) {
-        throw new ContactValidationError("Contact id is not a valid clIDType");
-      }
-
       if (existing) {
         results.push({ id: existing.id, available: false });
+        continue;
+      }
+
+      if (!isSchemaCompatibleContactId(id)) {
+        sawUnknownOutOfRange = true;
         continue;
       }
 
@@ -75,6 +79,10 @@ export class ContactService {
 
       const [result] = await this.repository.checkAvailability([id]);
       results.push(result ?? { id, available: true });
+    }
+
+    if (results.length === 0 && sawUnknownOutOfRange) {
+      throw new ContactValidationError("Contact id is not a valid clIDType");
     }
 
     return results;
