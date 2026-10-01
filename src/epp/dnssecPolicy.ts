@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { DomainDsRecord } from "../domain/types.js";
 
 /** IANA DNSSEC algorithm numbers commonly accepted for DS records. */
@@ -8,6 +9,8 @@ const DIGEST_HEX_LENGTH: Record<number, number> = {
   2: 64,
   4: 96
 };
+
+const DNSKEY_FLAGS = new Set([256, 257]);
 
 export class DnssecPolicyError extends Error {
   constructor(readonly reason: string) {
@@ -33,4 +36,97 @@ export function assertValidDsRecord(record: DomainDsRecord): void {
   if (!/^[A-Fa-f0-9]+$/.test(record.digest) || record.digest.length !== digestLength) {
     throw new DnssecPolicyError(`DS digest must be ${digestLength} hexadecimal characters`);
   }
+}
+
+/**
+ * RFC 5910 keyData interface: accept DNSKEY material and derive a DS record
+ * (SHA-256 / digest type 2 by default) for storage and zone publication.
+ */
+export function dsRecordFromKeyData(
+  ownerName: string,
+  keyData: { flags: number; protocol: number; algorithm: number; publicKey: string },
+  digestType = 2
+): DomainDsRecord {
+  if (!DNSKEY_FLAGS.has(keyData.flags)) {
+    throw new DnssecPolicyError("DNSKEY flags must be 256 or 257");
+  }
+
+  if (keyData.protocol !== 3) {
+    throw new DnssecPolicyError("DNSKEY protocol must be 3");
+  }
+
+  if (!DS_ALGORITHMS.has(keyData.algorithm)) {
+    throw new DnssecPolicyError("DNSKEY algorithm is not a registered DNSSEC algorithm");
+  }
+
+  const publicKeyWire = decodeDnskeyPublicKey(keyData.publicKey);
+  const dnskeyRdata = Buffer.concat([
+    uint16(keyData.flags),
+    Buffer.from([keyData.protocol, keyData.algorithm]),
+    publicKeyWire
+  ]);
+  const keyTag = dnskeyKeyTag(dnskeyRdata);
+  const digest = dsDigestHex(ownerName, dnskeyRdata, digestType);
+  const record: DomainDsRecord = {
+    keyTag,
+    algorithm: keyData.algorithm,
+    digestType,
+    digest
+  };
+  assertValidDsRecord(record);
+  return record;
+}
+
+function decodeDnskeyPublicKey(value: string): Buffer {
+  const compact = value.replace(/\s+/g, "");
+
+  if (!compact || !/^[A-Za-z0-9+/]+=*$/.test(compact)) {
+    throw new DnssecPolicyError("DNSKEY public key must be base64");
+  }
+
+  const decoded = Buffer.from(compact, "base64");
+
+  if (decoded.length === 0) {
+    throw new DnssecPolicyError("DNSKEY public key must be base64");
+  }
+
+  return decoded;
+}
+
+/** RFC 4034 §5.1.4 key tag over DNSKEY RDATA. */
+export function dnskeyKeyTag(dnskeyRdata: Buffer): number {
+  let ac = 0;
+
+  for (const [index, byte] of dnskeyRdata.entries()) {
+    ac += index & 1 ? byte : byte << 8;
+  }
+
+  ac += (ac >> 16) & 0xffff;
+  return ac & 0xffff;
+}
+
+function dsDigestHex(ownerName: string, dnskeyRdata: Buffer, digestType: number): string {
+  const hashName = digestType === 1 ? "sha1" : digestType === 4 ? "sha384" : "sha256";
+  return createHash(hashName)
+    .update(Buffer.concat([nameToWire(ownerName), dnskeyRdata]))
+    .digest("hex")
+    .toUpperCase();
+}
+
+function nameToWire(name: string): Buffer {
+  const labels = name
+    .toLowerCase()
+    .replace(/\.$/, "")
+    .split(".")
+    .filter(Boolean);
+  return Buffer.concat([
+    ...labels.map((label) => Buffer.concat([Buffer.from([label.length]), Buffer.from(label)])),
+    Buffer.from([0])
+  ]);
+}
+
+function uint16(value: number): Buffer {
+  const buffer = Buffer.alloc(2);
+  buffer.writeUInt16BE(value);
+  return buffer;
 }

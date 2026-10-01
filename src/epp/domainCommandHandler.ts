@@ -2,7 +2,6 @@ import {
   DomainAlreadyExistsError,
   DomainNotFoundOrUnauthorizedError,
   DomainService,
-  DnssecPolicyError,
   HostAttributeNotSupportedError,
   ObjectDoesNotExistError,
   ObjectStatusProhibitsOperationError,
@@ -26,7 +25,7 @@ import {
   requiredParameterMissing
 } from "./domainResponses.js";
 import { childNode, childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
-import { assertValidDsRecord } from "./dnssecPolicy.js";
+import { assertValidDsRecord, dsRecordFromKeyData, DnssecPolicyError } from "./dnssecPolicy.js";
 import type { PollMessageRepository } from "./pollMessageRepository.js";
 import { commandCompleted, objectStatusProhibitsOperation, resultResponse, syntaxError } from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
@@ -133,7 +132,7 @@ export class DomainCommandHandler implements CommandHandler {
     try {
       period = parsePeriod(childValue(domainCreate, "period"));
       nameservers = parseNameservers(childValue(domainCreate, "ns"));
-      dsRecords = parseDsRecords(extension);
+      dsRecords = parseDsRecords(extension, "add", name);
     } catch (error) {
       if (
         error instanceof RegistryPolicyError ||
@@ -261,8 +260,8 @@ export class DomainCommandHandler implements CommandHandler {
         statusesToRemove: parseStatuses(childValue(childNode(domainUpdate, "rem"), "status")),
         registrantContact: text(childValue(childNode(domainUpdate, "chg"), "registrant")),
         authInfo: parseAuthInfo(childValue(childNode(domainUpdate, "chg"), "authInfo")),
-        dsRecordsToAdd: parseDsRecords(extension),
-        dsRecordsToRemove: parseDsRecords(extension, "rem")
+        dsRecordsToAdd: parseDsRecords(extension, "add", name),
+        dsRecordsToRemove: parseDsRecords(extension, "rem", name)
       });
 
       return commandCompleted(context.transactionId);
@@ -539,7 +538,11 @@ function parseAuthInfo(value: unknown): string | undefined {
   return text(childValue(value, "pw"));
 }
 
-function parseDsRecords(value: unknown, section: "add" | "rem" = "add"): Array<{
+function parseDsRecords(
+  value: unknown,
+  section: "add" | "rem" = "add",
+  ownerName?: string
+): Array<{
   keyTag: number;
   algorithm: number;
   digestType: number;
@@ -558,11 +561,42 @@ function parseDsRecords(value: unknown, section: "add" | "rem" = "add"): Array<{
     return [];
   }
 
-  const keyData = prefixedValue(dsContainer, "keyData");
+  const keyNodes = asArray(prefixedValue(dsContainer, "keyData"));
   const dsNodes = asArray(prefixedValue(dsContainer, "dsData"));
 
-  if (keyData !== undefined && dsNodes.length === 0) {
-    throw new DnssecPolicyError("keyData interface is not supported");
+  if (keyNodes.length > 0 && dsNodes.length > 0) {
+    throw new DnssecPolicyError("secDNS create/update must not mix keyData and dsData");
+  }
+
+  if (keyNodes.length > 0) {
+    if (!ownerName) {
+      throw new DnssecPolicyError("keyData requires a domain name");
+    }
+
+    return keyNodes.map((entry) => {
+      const keyData = node(entry);
+      const flagsText = text(prefixedValue(keyData, "flags"));
+      const protocolText = text(prefixedValue(keyData, "protocol"));
+      const algorithmText = text(prefixedValue(keyData, "alg"));
+      const publicKey = text(prefixedValue(keyData, "pubKey"));
+      const flags = Number(flagsText);
+      const protocol = Number(protocolText);
+      const algorithm = Number(algorithmText);
+
+      if (
+        !flagsText ||
+        !protocolText ||
+        !algorithmText ||
+        !publicKey ||
+        !Number.isInteger(flags) ||
+        !Number.isInteger(protocol) ||
+        !Number.isInteger(algorithm)
+      ) {
+        throw new DnssecPolicyError("keyData fields are missing or invalid");
+      }
+
+      return dsRecordFromKeyData(ownerName, { flags, protocol, algorithm, publicKey });
+    });
   }
 
   return dsNodes.map((entry) => {
