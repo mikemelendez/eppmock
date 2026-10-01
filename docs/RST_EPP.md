@@ -65,7 +65,7 @@ Example `EPP_USERS` after ICANN issues certs (keep the passwords you already use
 [{"clid":"melendez-admin","password":"..."},{"clid":"melendez-registrar","password":"...","clientCertSha256":"..."},{"clid":"melendez-tester","password":"...","clientCertSha256":"..."}]
 ```
 
-### EPP repository ID (`EPP_REPOSITORY_ID`) — required for epp-14
+### EPP repository ID (`EPP_REPOSITORY_ID`) — epp-14 ROID suffix
 
 ROIDs look like `D8E5CF8F8ACD1-ICANNRST`. The suffix after `-` must appear in the
 [IANA EPP Repository Identifiers](https://www.iana.org/assignments/epp-repository-ids/)
@@ -73,19 +73,20 @@ registry. RST returns `EPP_DOMAIN_CREATE_INFO_RESPONSE_INVALID_ROID` when it doe
 
 | Test plan | Repository ID |
 | --- | --- |
-| **RSP evaluation / OT&E / EPP-only** | Default `ICANNRST` is IANA-registered and **MAY** be used ([RST §2.8](https://icann.github.io/rst-test-specs/v2026.07/rst-test-specs.html)) |
-| **Pre-Delegation / post-delegation (production)** | `ICANNRST` **MUST NOT** be used. Register your own id (≤8 letters/digits) with IANA (FCFS), then set the GitHub Actions / deploy secret and redeploy |
+| **`StandardEPPOnly` / RSP evaluation / OT&E** | Default `ICANNRST` is IANA-registered (2025-04-17) and **MAY** be used ([RST §2.8](https://icann.github.io/rst-test-specs/v2026.07/rst-test-specs.html)). If RST still reports it as unregistered, that is an RST/IANA lookup bug — workaround: use your own registered id (below). |
+| **Pre-Delegation / post-delegation (production)** | `ICANNRST` **MUST NOT** be used. Register your own id and set `EPP_REPOSITORY_ID`. |
 
 ```bash
-# Example after IANA registers MELENDEZ for you:
+# After IANA registers MELENDEZ (or similar ≤8 letters/digits):
 EPP_REPOSITORY_ID=MELENDEZ
 ```
 
 New objects pick up the new suffix immediately after redeploy. Existing SQLite rows
 keep their old ROIDs until recreated.
 
-IANA registration template: [epp-repository-ids](https://www.iana.org/assignments/epp-repository-ids/)
-(send the request to IANA; include ID + hex form, e.g. `MELENDEZ, #x004D #x0045 #x004C #x0045 #x004E #x0044 #x0045 #x005A`).
+IANA registration (FCFS): email IANA using the template on
+[epp-repository-ids](https://www.iana.org/assignments/epp-repository-ids/)
+(e.g. `MELENDEZ, #x004D #x0045 #x004C #x0045 #x004E #x0044 #x0045 #x005A`).
 
 ## Intentionally not implemented
 
