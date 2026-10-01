@@ -49,8 +49,25 @@ export const RFC_9325_TLS12_CIPHERS = [
   "ECDHE-RSA-CHACHA20-POLY1305"
 ].join(":");
 
-/** TEMPORARY DEBUG: accept only the first N public TLS connects, then drop the rest. */
-const TEMP_DEBUG_TLS_ACCEPT_LIMIT = 3;
+/**
+ * TEMPORARY DEBUG: accept only the normal RST client cert presentations seen in
+ * production logs (client01 / client02 leaf + canonical Sectigo chain). Reject
+ * variations (leaf-only, alternate root, extraneous/self-signed, missing cert).
+ * Remove after debugging.
+ */
+const TEMP_DEBUG_ALLOWED_LEAF_SHA256 = new Set([
+  // epp-client01.rst-api-qa.icann.org
+  "186f14d5dd016c97bee0d44ccf705af720897aef724824049c8dd9f027e8106b",
+  // epp-client02.rst-api-qa.icann.org
+  "4349d0f567d1f9b12f7609fc4e885089021a519e64c3200ef3b6441959186cf8"
+]);
+
+/** Canonical intermediates+root for the normal RST presentations (chainLength === 4). */
+const TEMP_DEBUG_CANONICAL_CHAIN_SHA256 = [
+  "6542d176bed50f193c0ce297ae44ecd8a0a86bec2ede682769344059b4e78530", // Sectigo Public Server Authentication CA OV R36
+  "92f351bf3d54164dfa8dd8f9e1139d3150349786485d2b9eecd00e2971c1e6c5", // Sectigo Public Server Authentication Root R46
+  "68b9c761219a5b1f0131784474665db61bbdb109e00f05ca9f74244ee5f5f52b" // USERTrust RSA Certification Authority (Comodo-issued)
+];
 
 export function startEppServer(config: AppConfig, router: EppRouter, options?: Partial<EppServerOptions>): net.Server {
   // options.tls=false is how the dashboard listener stays plaintext while EPP_PORT is TLS.
@@ -62,39 +79,38 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
     tls: options?.tls ?? isTlsEnabled(config)
   };
 
-  // TEMPORARY DEBUG counter — reset on process restart. Remove with TEMP_DEBUG_TLS_ACCEPT_LIMIT.
-  let tlsConnectionsSeen = 0;
-
   const onConnection = (socket: net.Socket): void => {
     const sessionId = randomUUID();
-    const presented = peerCertificateFingerprint(socket);
+    const chain = resolved.tls ? collectPeerCertificateChain(socket) : [];
+    const presented = chain[0]?.fingerprint256;
 
     if (resolved.tls) {
       logClientCertificateChain(socket as tls.TLSSocket, {
         label: resolved.label,
         sessionId,
-        remote: formatRemote(socket)
+        remote: formatRemote(socket),
+        chain
       });
 
       // TEMPORARY DEBUG: only enforce on the production listener (exitOnError default true).
-      // Loopback is ignored so local health checks do not consume the budget.
+      // Loopback is ignored so local health checks still work without a client cert.
       if (resolved.exitOnError && !isLoopbackRemote(socket)) {
-        tlsConnectionsSeen += 1;
-        const connectionNumber = tlsConnectionsSeen;
-
-        if (connectionNumber > TEMP_DEBUG_TLS_ACCEPT_LIMIT) {
+        const decision = temporaryDebugCertDecision(chain);
+        if (!decision.accept) {
           console.log(
-            `${resolved.label} TEMPORARY DEBUG rejecting TLS connection ${connectionNumber}` +
+            `${resolved.label} TEMPORARY DEBUG rejecting cert variation` +
               ` session=${sessionId} remote=${formatRemote(socket)}` +
-              ` (accept limit ${TEMP_DEBUG_TLS_ACCEPT_LIMIT})`
+              ` reason=${decision.reason}` +
+              ` leaf=${presented ?? "(none)"} chainLength=${chain.length}`
           );
           socket.destroy();
           return;
         }
 
         console.log(
-          `${resolved.label} TEMPORARY DEBUG accepting TLS connection ${connectionNumber}/${TEMP_DEBUG_TLS_ACCEPT_LIMIT}` +
-            ` session=${sessionId} remote=${formatRemote(socket)}`
+          `${resolved.label} TEMPORARY DEBUG accepting normal client cert` +
+            ` session=${sessionId} remote=${formatRemote(socket)}` +
+            ` leaf=${presented} chainLength=${chain.length}`
         );
       }
     }
@@ -155,7 +171,8 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
     console.log(`${resolved.label} listening on ${resolved.host}:${resolved.port} (${mode})`);
     if (resolved.tls && resolved.exitOnError) {
       console.log(
-        `${resolved.label} TEMPORARY DEBUG accepting only the first ${TEMP_DEBUG_TLS_ACCEPT_LIMIT} TLS connections`
+        `${resolved.label} TEMPORARY DEBUG accepting only normal RST client01/client02 chains;` +
+          ` rejecting leaf-only / unordered-root / extraneous / missing cert variations`
       );
     }
   });
@@ -163,9 +180,34 @@ export function startEppServer(config: AppConfig, router: EppRouter, options?: P
   return server;
 }
 
-function peerCertificateFingerprint(socket: net.Socket): string | undefined {
-  const chain = collectPeerCertificateChain(socket);
-  return chain[0]?.fingerprint256;
+/** TEMPORARY DEBUG: normal client01/02 leaf + canonical 4-cert chain only. */
+function temporaryDebugCertDecision(chain: PeerCertSummary[]): { accept: boolean; reason: string } {
+  if (chain.length === 0) {
+    return { accept: false, reason: "missing-client-cert" };
+  }
+
+  const leaf = chain[0]?.fingerprint256 ?? "";
+  if (!TEMP_DEBUG_ALLOWED_LEAF_SHA256.has(leaf)) {
+    return { accept: false, reason: "unknown-or-extraneous-leaf" };
+  }
+
+  // Leaf-only (and many stripped extraneous presentations) show chainLength=1.
+  if (chain.length !== 4) {
+    return { accept: false, reason: `non-canonical-chain-length-${chain.length}` };
+  }
+
+  for (let i = 0; i < TEMP_DEBUG_CANONICAL_CHAIN_SHA256.length; i += 1) {
+    const expected = TEMP_DEBUG_CANONICAL_CHAIN_SHA256[i];
+    const actual = chain[i + 1]?.fingerprint256;
+    if (actual !== expected) {
+      return {
+        accept: false,
+        reason: `non-canonical-chain-cert-${i + 1}`
+      };
+    }
+  }
+
+  return { accept: true, reason: "normal-rst-client-chain" };
 }
 
 /** Walk getPeerCertificate(true) and return leaf-first summaries (including PEM). */
@@ -216,9 +258,9 @@ function collectPeerCertificateChain(socket: net.Socket): PeerCertSummary[] {
 /** Log every peer cert Node exposes after the handshake (leaf + chain). */
 function logClientCertificateChain(
   socket: tls.TLSSocket,
-  meta: { label: string; sessionId: string; remote: string }
+  meta: { label: string; sessionId: string; remote: string; chain?: PeerCertSummary[] }
 ): void {
-  const chain = collectPeerCertificateChain(socket);
+  const chain = meta.chain ?? collectPeerCertificateChain(socket);
   const authorized = socket.authorized;
   const authorizationError = socket.authorizationError
     ? String(socket.authorizationError)
