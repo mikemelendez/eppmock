@@ -50,7 +50,9 @@ test("persists secDNS DS derived from keyData create (epp.secDNSInterfaces=keyDa
     info,
     /<secDNS:pubKey>7JCMl8WwNOyFNWF6GBuMlIdtf08Cr1bO\/hToZ6xCvKcu4o5ShXBzbCgzTGJHovhoUgj9wsMA1aWA<\/secDNS:pubKey>/
   );
-  assert.match(info, /<secDNS:keyTag>34300<\/secDNS:keyTag>/);
+  // RFC 5910 forbids mixing keyData and dsData in the same infData.
+  assert.doesNotMatch(info, /<secDNS:dsData>/);
+  assert.doesNotMatch(info, /<secDNS:keyTag>/);
 });
 
 test("rejects DNSKEY flags 256 on keyData update (RST epp-16)", async () => {

@@ -19,7 +19,7 @@ Use these RST input parameters:
 | `general.registryDataModel` | `maximum` |
 | `dns.gluePolicy` | `narrow` (only the superordinate sponsor may create in-bailiwick hosts, and those hosts require glue) |
 | `epp.requiredContactTypes` | `[]` (registrant is required; admin/tech/billing are optional) |
-| `epp.secDNSInterfaces` | `keyData` or `dsData` (both supported; `keyData` is stored and echoed on info, and also converted to SHA-256 DS for the zone; only flags `257` accepted) |
+| `epp.secDNSInterfaces` | `keyData` or `dsData` (both supported; `keyData` is echoed alone on info — never mixed with `dsData` — and also converted to SHA-256 DS for the zone; only flags `257` accepted) |
 | `epp.supportedContactPostalInfoTypes` | `both` |
 | `epp.clid01` / `epp.clid02` | `melendez-reg` / `melendez-tester` (or any two distinct `EPP_USERS` clIDs; each clID must be 3–16 chars) |
 | `epp.registeredNames` | one existing domain **not** sponsored by those two clients (e.g. `example.melendez`, sponsored by `melendez-admin`) |
@@ -36,7 +36,7 @@ Use these RST input parameters:
 | epp-08 / epp-12 | Non-sponsoring clients get `2201` on contact/host info and update |
 | epp-10 / epp-24 | Delete returns `1000` and a later info is `2303` |
 | epp-11 / epp-13 | Internal hosts need a superordinate domain + public glue; external hosts may be glueless; `v5`/empty/loopback/`::1` rejected |
-| epp-14 | Domain create requires registrant, host **objects** (not attributes), existing hosts/contacts, period 1–10y, valid `dsData` or `keyData` (keyData echoed on info + SHA-256 DS); info has `roid`/`clID`/`crID`. ROID repository suffix must be IANA-registered — see below |
+| epp-14 | Domain create requires registrant, host **objects** (not attributes), existing hosts/contacts, period 1–10y, valid `dsData` or `keyData` (keyData-only on info when that interface is used; DS still derived for the zone); info has `roid`/`clID`/`crID`. ROID repository suffix must be IANA-registered — see below |
 | epp-15 | Linked contact/host delete returns `2305` |
 | epp-16 | Domain update of NS/status/DS/keyData (flags `256` rejected); non-sponsor may `info` (authInfo omitted unless pw matches); other registrar `update` gets `2201` |
 | epp-18 | Renew extends expiry, sets `renewPeriod`, rejects expiry more than 10 years ahead; `curExpDate` must match when present |

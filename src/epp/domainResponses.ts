@@ -143,29 +143,27 @@ function buildInfoExtension(domain: DomainRecord): Record<string, unknown> | und
   const hasKeyData = keyData.length > 0;
   const hasDsData = domain.dsRecords.length > 0;
 
-  if (hasKeyData || hasDsData) {
+  // RFC 5910: infData is either keyData* or dsData* — never both.
+  // Prefer keyData when present (epp.secDNSInterfaces=keyData); DS stays for zone publish.
+  if (hasKeyData) {
     extension["secDNS:infData"] = {
       ...secDnsAttributes,
-      ...(hasKeyData
-        ? {
-            "secDNS:keyData": keyData.map((record) => ({
-              "secDNS:flags": record.flags,
-              "secDNS:protocol": record.protocol,
-              "secDNS:alg": record.algorithm,
-              "secDNS:pubKey": record.publicKey
-            }))
-          }
-        : {}),
-      ...(hasDsData
-        ? {
-            "secDNS:dsData": domain.dsRecords.map((record) => ({
-              "secDNS:keyTag": record.keyTag,
-              "secDNS:alg": record.algorithm,
-              "secDNS:digestType": record.digestType,
-              "secDNS:digest": record.digest
-            }))
-          }
-        : {})
+      "secDNS:keyData": keyData.map((record) => ({
+        "secDNS:flags": record.flags,
+        "secDNS:protocol": record.protocol,
+        "secDNS:alg": record.algorithm,
+        "secDNS:pubKey": record.publicKey
+      }))
+    };
+  } else if (hasDsData) {
+    extension["secDNS:infData"] = {
+      ...secDnsAttributes,
+      "secDNS:dsData": domain.dsRecords.map((record) => ({
+        "secDNS:keyTag": record.keyTag,
+        "secDNS:alg": record.algorithm,
+        "secDNS:digestType": record.digestType,
+        "secDNS:digest": record.digest
+      }))
     };
   }
 
