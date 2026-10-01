@@ -21,8 +21,9 @@ Use these RST input parameters:
 | `epp.requiredContactTypes` | `[]` (registrant is required; admin/tech/billing are optional) |
 | `epp.secDNSInterfaces` | `dsData` |
 | `epp.supportedContactPostalInfoTypes` | `both` |
-| `epp.clid01` / `epp.clid02` | `melendez-registrar` / `melendez-tester` (or any two distinct `EPP_USERS` clIDs) |
-| `epp.registeredNames` | one existing domain **not** sponsored by those two clients (create it as `melendez-admin`) |
+| `epp.clid01` / `epp.clid02` | `melendez-registrar` / `melendez-tester` (or any two distinct `EPP_USERS` clIDs; each clID must be 3–16 chars) |
+| `epp.registeredNames` | one existing domain **not** sponsored by those two clients (e.g. `example.melendez`, sponsored by `melendez-admin`) |
+| `epp.registeredContacts` | at least two existing contact ids that fit EPP `clIDType` (3–16 chars), e.g. `melendez-ct1` / `melendez-ct2` (seeded) or `NIC-001` / `EXA-001`. **Do not** use `melendez-contact1` (17 chars) — check returns **2005** and epp-06 fails |
 
 ## Protocol coverage (implemented here)
 
@@ -30,7 +31,7 @@ Use these RST input parameters:
 | --- | --- |
 | epp-02 | Greeting with `1.0`/`en`, domain/contact/host objects, `secDNS-1.1`, `rgp-1.0`, `launch-1.0` |
 | epp-03 | Login rejects unknown clID, bad password, missing/wrong/other-registrar client certs (when TLS + fingerprints are configured) |
-| epp-04–06 | check with mixed names: registered/reserved/pattern-invalid → `avail=0`, free → `avail=1`; contact ids outside clIDType length 3–16 return **2005** (must not echo schema-invalid ids) |
+| epp-04–06 | check with mixed names: registered/reserved/pattern-invalid → `avail=0`, free → `avail=1`; **unknown** contact ids outside clIDType length 3–16 return **2005** (must not echo schema-invalid ids). `epp.registeredContacts` must already exist and be ≤16 chars so check returns **1000** with `avail=0` |
 | epp-07 / epp-09 | Contact create/update validate clID (3–16), postal lines ≤255, email local ≤64, ISO country, voice/fax; update statuses limited to client*; info round-trips values and an IANA ROID (`*-ICANNRST`) |
 | epp-08 / epp-12 | Non-sponsoring clients get `2201` on contact/host info and update |
 | epp-10 / epp-24 | Delete returns `1000` and a later info is `2303` |
