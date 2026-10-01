@@ -25,7 +25,13 @@ import {
   requiredParameterMissing
 } from "./domainResponses.js";
 import { childNode, childValue, getCommand, node, stringValues, text } from "./commandExtractor.js";
-import { assertValidDsRecord, dsRecordFromKeyData, DnssecPolicyError } from "./dnssecPolicy.js";
+import {
+  assertValidDsRecord,
+  assertValidKeyData,
+  dsRecordFromKeyData,
+  DnssecPolicyError
+} from "./dnssecPolicy.js";
+import type { DomainDsRecord, DomainKeyData } from "../domain/types.js";
 import type { PollMessageRepository } from "./pollMessageRepository.js";
 import { commandCompleted, objectStatusProhibitsOperation, resultResponse, syntaxError } from "./responses.js";
 import type { CommandContext, CommandHandler } from "./types.js";
@@ -127,12 +133,12 @@ export class DomainCommandHandler implements CommandHandler {
 
     let period: number | undefined;
     let nameservers: string[];
-    let dsRecords: ReturnType<typeof parseDsRecords>;
+    let secDns: ReturnType<typeof parseSecDns>;
 
     try {
       period = parsePeriod(childValue(domainCreate, "period"));
       nameservers = parseNameservers(childValue(domainCreate, "ns"));
-      dsRecords = parseDsRecords(extension, "add", name);
+      secDns = parseSecDns(extension, "add", name);
     } catch (error) {
       if (
         error instanceof RegistryPolicyError ||
@@ -162,7 +168,8 @@ export class DomainCommandHandler implements CommandHandler {
         registrantContact,
         contacts,
         authInfo,
-        dsRecords
+        dsRecords: secDns.dsRecords,
+        keyData: secDns.keyData
       });
 
       const launchCreate = namespacedNode(extension, LAUNCH_NS, "create");
@@ -251,6 +258,8 @@ export class DomainCommandHandler implements CommandHandler {
     }
 
     try {
+      const secDnsAdd = parseSecDns(extension, "add", name);
+      const secDnsRem = parseSecDns(extension, "rem", name);
       await this.domains.update(name, context.session.clid, {
         nameserversToAdd: parseNameservers(childValue(childNode(domainUpdate, "add"), "ns")),
         nameserversToRemove: parseNameservers(childValue(childNode(domainUpdate, "rem"), "ns")),
@@ -260,8 +269,10 @@ export class DomainCommandHandler implements CommandHandler {
         statusesToRemove: parseStatuses(childValue(childNode(domainUpdate, "rem"), "status")),
         registrantContact: text(childValue(childNode(domainUpdate, "chg"), "registrant")),
         authInfo: parseAuthInfo(childValue(childNode(domainUpdate, "chg"), "authInfo")),
-        dsRecordsToAdd: parseDsRecords(extension, "add", name),
-        dsRecordsToRemove: parseDsRecords(extension, "rem", name)
+        dsRecordsToAdd: secDnsAdd.dsRecords,
+        dsRecordsToRemove: secDnsRem.dsRecords,
+        keyDataToAdd: secDnsAdd.keyData,
+        keyDataToRemove: secDnsRem.keyData
       });
 
       return commandCompleted(context.transactionId);
@@ -320,12 +331,11 @@ export class DomainCommandHandler implements CommandHandler {
 
     const isSponsoringRegistrar = context.session.clid === domain.registrarId;
     const providedAuthInfo = text(childValue(childNode(domainInfo, "authInfo"), "pw"));
+    const authInfoMatches = Boolean(domain.authInfo && providedAuthInfo === domain.authInfo);
+    // RFC 5731: non-sponsors may query; omit authInfo unless presented and correct.
+    const includeAuthInfo = isSponsoringRegistrar || authInfoMatches;
 
-    if (!isSponsoringRegistrar && (!domain.authInfo || providedAuthInfo !== domain.authInfo)) {
-      return objectNotAuthorized(context.transactionId);
-    }
-
-    return domainInfoResponse(domain, context.transactionId);
+    return domainInfoResponse(domain, context.transactionId, { includeAuthInfo });
   }
 
   private async delete(value: unknown, context: CommandContext): Promise<string> {
@@ -538,16 +548,11 @@ function parseAuthInfo(value: unknown): string | undefined {
   return text(childValue(value, "pw"));
 }
 
-function parseDsRecords(
+function parseSecDns(
   value: unknown,
   section: "add" | "rem" = "add",
   ownerName?: string
-): Array<{
-  keyTag: number;
-  algorithm: number;
-  digestType: number;
-  digest: string;
-}> {
+): { dsRecords: DomainDsRecord[]; keyData: DomainKeyData[] } {
   const root = node(value);
   const secDnsCreate = namespacedNode(root, "urn:ietf:params:xml:ns:secDNS-1.1", "create");
   const secDnsUpdate = namespacedNode(root, "urn:ietf:params:xml:ns:secDNS-1.1", "update");
@@ -558,7 +563,7 @@ function parseDsRecords(
       : namespacedNode(secDnsUpdate, "urn:ietf:params:xml:ns:secDNS-1.1", "rem"));
 
   if (!dsContainer) {
-    return [];
+    return { dsRecords: [], keyData: [] };
   }
 
   const keyNodes = asArray(prefixedValue(dsContainer, "keyData"));
@@ -573,12 +578,12 @@ function parseDsRecords(
       throw new DnssecPolicyError("keyData requires a domain name");
     }
 
-    return keyNodes.map((entry) => {
-      const keyData = node(entry);
-      const flagsText = text(prefixedValue(keyData, "flags"));
-      const protocolText = text(prefixedValue(keyData, "protocol"));
-      const algorithmText = text(prefixedValue(keyData, "alg"));
-      const publicKey = text(prefixedValue(keyData, "pubKey"));
+    const keyData = keyNodes.map((entry) => {
+      const keyNode = node(entry);
+      const flagsText = text(prefixedValue(keyNode, "flags"));
+      const protocolText = text(prefixedValue(keyNode, "protocol"));
+      const algorithmText = text(prefixedValue(keyNode, "alg"));
+      const publicKey = text(prefixedValue(keyNode, "pubKey"));
       const flags = Number(flagsText);
       const protocol = Number(protocolText);
       const algorithm = Number(algorithmText);
@@ -595,41 +600,51 @@ function parseDsRecords(
         throw new DnssecPolicyError("keyData fields are missing or invalid");
       }
 
-      return dsRecordFromKeyData(ownerName, { flags, protocol, algorithm, publicKey });
+      const record: DomainKeyData = { flags, protocol, algorithm, publicKey };
+      assertValidKeyData(record);
+      return record;
     });
+
+    return {
+      keyData,
+      dsRecords: keyData.map((record) => dsRecordFromKeyData(ownerName, record))
+    };
   }
 
-  return dsNodes.map((entry) => {
-    const dsData = node(entry);
-    const keyTagText = text(prefixedValue(dsData, "keyTag"));
-    const algorithmText = text(prefixedValue(dsData, "alg"));
-    const digestTypeText = text(prefixedValue(dsData, "digestType"));
-    const digest = text(prefixedValue(dsData, "digest"));
-    const keyTag = Number(keyTagText);
-    const algorithm = Number(algorithmText);
-    const digestType = Number(digestTypeText);
+  return {
+    keyData: [],
+    dsRecords: dsNodes.map((entry) => {
+      const dsData = node(entry);
+      const keyTagText = text(prefixedValue(dsData, "keyTag"));
+      const algorithmText = text(prefixedValue(dsData, "alg"));
+      const digestTypeText = text(prefixedValue(dsData, "digestType"));
+      const digest = text(prefixedValue(dsData, "digest"));
+      const keyTag = Number(keyTagText);
+      const algorithm = Number(algorithmText);
+      const digestType = Number(digestTypeText);
 
-    if (
-      !keyTagText ||
-      !algorithmText ||
-      !digestTypeText ||
-      !digest ||
-      !Number.isInteger(keyTag) ||
-      !Number.isInteger(algorithm) ||
-      !Number.isInteger(digestType)
-    ) {
-      throw new DnssecPolicyError("DS record fields are missing or invalid");
-    }
+      if (
+        !keyTagText ||
+        !algorithmText ||
+        !digestTypeText ||
+        !digest ||
+        !Number.isInteger(keyTag) ||
+        !Number.isInteger(algorithm) ||
+        !Number.isInteger(digestType)
+      ) {
+        throw new DnssecPolicyError("DS record fields are missing or invalid");
+      }
 
-    const record = {
-      keyTag,
-      algorithm,
-      digestType,
-      digest: digest.toUpperCase()
-    };
-    assertValidDsRecord(record);
-    return record;
-  });
+      const record = {
+        keyTag,
+        algorithm,
+        digestType,
+        digest: digest.toUpperCase()
+      };
+      assertValidDsRecord(record);
+      return record;
+    })
+  };
 }
 
 function namespacedNode(

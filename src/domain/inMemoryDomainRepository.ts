@@ -41,6 +41,7 @@ export class InMemoryDomainRepository implements DomainRepository {
       contacts: input.contacts ?? [],
       authInfo: input.authInfo,
       dsRecords: input.dsRecords ?? [],
+      keyData: input.keyData ?? [],
       createdAt: createdAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
       rgpStatus: "addPeriod"
@@ -70,6 +71,7 @@ export class InMemoryDomainRepository implements DomainRepository {
       registrantContact: input.registrantContact ?? domain.registrantContact,
       authInfo: input.authInfo ?? domain.authInfo,
       dsRecords: updateDsRecords(domain.dsRecords, input.dsRecordsToAdd, input.dsRecordsToRemove),
+      keyData: updateKeyData(domain.keyData ?? [], input.keyDataToAdd, input.keyDataToRemove),
       rgpStatus: resolveRgpStatus(domain.rgpStatus, input.rgpStatus),
       updatedAt: new Date().toISOString()
     };
@@ -215,6 +217,7 @@ export class InMemoryDomainRepository implements DomainRepository {
         nameservers: unique(record.nameservers ?? []),
         contacts: record.contacts ?? [],
         dsRecords: record.dsRecords ?? [],
+        keyData: record.keyData ?? [],
         creatorId: record.creatorId ?? record.registrarId,
         roid: record.roid || allocateRoid("D")
       });
@@ -285,8 +288,29 @@ function updateDsRecords(
   return [...dsMap.values()];
 }
 
+function updateKeyData(
+  current: NonNullable<DomainRecord["keyData"]>,
+  toAdd: NonNullable<DomainRecord["keyData"]> = [],
+  toRemove: NonNullable<DomainRecord["keyData"]> = []
+): NonNullable<DomainRecord["keyData"]> {
+  const removeSet = new Set(toRemove.map(keyDataKey));
+  const keyMap = new Map(
+    current.filter((record) => !removeSet.has(keyDataKey(record))).map((record) => [keyDataKey(record), record])
+  );
+
+  for (const record of toAdd) {
+    keyMap.set(keyDataKey(record), record);
+  }
+
+  return [...keyMap.values()];
+}
+
 function dsKey(record: DomainRecord["dsRecords"][number]): string {
   return `${record.keyTag}:${record.algorithm}:${record.digestType}:${record.digest.toUpperCase()}`;
+}
+
+function keyDataKey(record: NonNullable<DomainRecord["keyData"]>[number]): string {
+  return `${record.flags}:${record.protocol}:${record.algorithm}:${record.publicKey.replace(/\s+/g, "")}`;
 }
 
 function normalizeStatuses(statuses: string[]): string[] {

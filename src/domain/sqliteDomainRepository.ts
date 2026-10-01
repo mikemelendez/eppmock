@@ -23,6 +23,7 @@ interface DomainRow {
   contacts_json: string | null;
   auth_info: string | null;
   ds_records_json: string | null;
+  key_data_json: string | null;
   created_at: string;
   updated_at: string | null;
   expires_at: string;
@@ -72,6 +73,7 @@ export class SqliteDomainRepository implements DomainRepository {
       contacts: input.contacts ?? [],
       authInfo: input.authInfo,
       dsRecords: input.dsRecords ?? [],
+      keyData: input.keyData ?? [],
       createdAt: createdAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
       rgpStatus: "addPeriod"
@@ -104,6 +106,7 @@ export class SqliteDomainRepository implements DomainRepository {
       registrantContact: input.registrantContact ?? domain.registrantContact,
       authInfo: input.authInfo ?? domain.authInfo,
       dsRecords: updateDsRecords(domain.dsRecords, input.dsRecordsToAdd, input.dsRecordsToRemove),
+      keyData: updateKeyData(domain.keyData ?? [], input.keyDataToAdd, input.keyDataToRemove),
       rgpStatus: resolveRgpStatus(domain.rgpStatus, input.rgpStatus),
       updatedAt: new Date().toISOString()
     };
@@ -273,12 +276,13 @@ export class SqliteDomainRepository implements DomainRepository {
           contacts_json,
           auth_info,
           ds_records_json,
+          key_data_json,
           created_at,
           updated_at,
           expires_at,
           transfer_json,
           rgp_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(...domainValues(record));
   }
@@ -297,6 +301,7 @@ export class SqliteDomainRepository implements DomainRepository {
           contacts_json = ?,
           auth_info = ?,
           ds_records_json = ?,
+          key_data_json = ?,
           created_at = ?,
           updated_at = ?,
           expires_at = ?,
@@ -333,6 +338,7 @@ export class SqliteDomainRepository implements DomainRepository {
       ["contacts_json", "ALTER TABLE domains ADD COLUMN contacts_json TEXT"],
       ["auth_info", "ALTER TABLE domains ADD COLUMN auth_info TEXT"],
       ["ds_records_json", "ALTER TABLE domains ADD COLUMN ds_records_json TEXT"],
+      ["key_data_json", "ALTER TABLE domains ADD COLUMN key_data_json TEXT"],
       ["updated_at", "ALTER TABLE domains ADD COLUMN updated_at TEXT"],
       ["transfer_json", "ALTER TABLE domains ADD COLUMN transfer_json TEXT"],
       ["rgp_status", "ALTER TABLE domains ADD COLUMN rgp_status TEXT"],
@@ -361,6 +367,7 @@ function domainValues(record: DomainRecord): [
   string | null,
   string,
   string,
+  string,
   string | null,
   string,
   string | null,
@@ -378,6 +385,7 @@ function domainValues(record: DomainRecord): [
     JSON.stringify(record.contacts),
     record.authInfo ?? null,
     JSON.stringify(record.dsRecords),
+    JSON.stringify(record.keyData ?? []),
     record.createdAt,
     record.updatedAt ?? null,
     record.expiresAt,
@@ -399,6 +407,7 @@ function mapDomainRow(row: DomainRow): DomainRecord {
     contacts: parseContacts(row.contacts_json),
     authInfo: row.auth_info ?? undefined,
     dsRecords: parseDsRecords(row.ds_records_json),
+    keyData: parseKeyData(row.key_data_json),
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? undefined,
     expiresAt: row.expires_at,
@@ -416,7 +425,8 @@ function normalizeRecord(record: DomainRecord): DomainRecord {
     statuses: normalizeStatuses(record.statuses ?? ["ok"]),
     nameservers: unique(record.nameservers ?? []),
     contacts: record.contacts ?? [],
-    dsRecords: record.dsRecords ?? []
+    dsRecords: record.dsRecords ?? [],
+    keyData: record.keyData ?? []
   };
 }
 
@@ -472,6 +482,31 @@ function parseDsRecords(value: string | null): DomainRecord["dsRecords"] {
       typeof item.algorithm === "number" &&
       typeof item.digestType === "number" &&
       typeof item.digest === "string"
+  );
+}
+
+function parseKeyData(value: string | null): NonNullable<DomainRecord["keyData"]> {
+  if (!value) {
+    return [];
+  }
+
+  const parsed = JSON.parse(value) as unknown;
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed.filter(
+    (item): item is NonNullable<DomainRecord["keyData"]>[number] =>
+      typeof item === "object" &&
+      item !== null &&
+      "flags" in item &&
+      "protocol" in item &&
+      "algorithm" in item &&
+      "publicKey" in item &&
+      typeof item.flags === "number" &&
+      typeof item.protocol === "number" &&
+      typeof item.algorithm === "number" &&
+      typeof item.publicKey === "string"
   );
 }
 
@@ -547,8 +582,29 @@ function updateDsRecords(
   return [...dsMap.values()];
 }
 
+function updateKeyData(
+  current: NonNullable<DomainRecord["keyData"]>,
+  toAdd: NonNullable<DomainRecord["keyData"]> = [],
+  toRemove: NonNullable<DomainRecord["keyData"]> = []
+): NonNullable<DomainRecord["keyData"]> {
+  const removeSet = new Set(toRemove.map(keyDataKey));
+  const keyMap = new Map(
+    current.filter((record) => !removeSet.has(keyDataKey(record))).map((record) => [keyDataKey(record), record])
+  );
+
+  for (const record of toAdd) {
+    keyMap.set(keyDataKey(record), record);
+  }
+
+  return [...keyMap.values()];
+}
+
 function dsKey(record: DomainRecord["dsRecords"][number]): string {
   return `${record.keyTag}:${record.algorithm}:${record.digestType}:${record.digest.toUpperCase()}`;
+}
+
+function keyDataKey(record: NonNullable<DomainRecord["keyData"]>[number]): string {
+  return `${record.flags}:${record.protocol}:${record.algorithm}:${record.publicKey.replace(/\s+/g, "")}`;
 }
 
 function normalizeStatuses(statuses: string[]): string[] {

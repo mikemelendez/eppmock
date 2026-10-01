@@ -137,6 +137,7 @@ export class DomainService {
     assertStatusDelta(existing.statuses, normalizedInput.statusesToAdd, normalizedInput.statusesToRemove);
     assertNameserverDelta(existing.nameservers, normalizedInput.nameserversToAdd, normalizedInput.nameserversToRemove);
     assertDsDelta(existing.dsRecords, normalizedInput.dsRecordsToAdd, normalizedInput.dsRecordsToRemove);
+    assertKeyDataDelta(existing.keyData ?? [], normalizedInput.keyDataToAdd, normalizedInput.keyDataToRemove);
     const domain = await this.repository.update(normalizedName, registrarId, normalizedInput);
 
     if (!domain) {
@@ -461,6 +462,30 @@ function assertDsDelta(
   }
 }
 
+function assertKeyDataDelta(
+  current: NonNullable<DomainRecord["keyData"]>,
+  toAdd: DomainRecord["keyData"] | undefined,
+  toRemove: DomainRecord["keyData"] | undefined
+): void {
+  const present = new Set(current.map(keyDataKey));
+
+  for (const record of toAdd ?? []) {
+    if (present.has(keyDataKey(record))) {
+      throw new DnssecPolicyError("DNSKEY is already present");
+    }
+  }
+
+  for (const record of toRemove ?? []) {
+    if (!present.has(keyDataKey(record))) {
+      throw new DnssecPolicyError("DNSKEY is not present");
+    }
+  }
+}
+
 function dsKey(record: DomainRecord["dsRecords"][number]): string {
   return `${record.keyTag}:${record.algorithm}:${record.digestType}:${record.digest.toUpperCase()}`;
+}
+
+function keyDataKey(record: NonNullable<DomainRecord["keyData"]>[number]): string {
+  return `${record.flags}:${record.protocol}:${record.algorithm}:${record.publicKey.replace(/\s+/g, "")}`;
 }

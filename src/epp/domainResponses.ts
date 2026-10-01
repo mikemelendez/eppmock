@@ -85,7 +85,13 @@ export function domainCreateResponse(domain: DomainRecord, transactionId?: strin
   });
 }
 
-export function domainInfoResponse(domain: DomainRecord, transactionId?: string): string {
+export function domainInfoResponse(
+  domain: DomainRecord,
+  transactionId?: string,
+  options?: { includeAuthInfo?: boolean }
+): string {
+  const includeAuthInfo = options?.includeAuthInfo !== false;
+
   return buildEppXml({
     epp: {
       ...eppAttributes,
@@ -117,7 +123,8 @@ export function domainInfoResponse(domain: DomainRecord, transactionId?: string)
             "domain:upDate": domain.updatedAt,
             "domain:exDate": domain.expiresAt,
             "domain:trDate": domain.transfer?.updatedAt,
-            "domain:authInfo": domain.authInfo ? { "domain:pw": domain.authInfo } : undefined
+            "domain:authInfo":
+              includeAuthInfo && domain.authInfo ? { "domain:pw": domain.authInfo } : undefined
           }
         },
         extension: buildInfoExtension(domain),
@@ -132,16 +139,33 @@ export function domainInfoResponse(domain: DomainRecord, transactionId?: string)
 
 function buildInfoExtension(domain: DomainRecord): Record<string, unknown> | undefined {
   const extension: Record<string, unknown> = {};
+  const keyData = domain.keyData ?? [];
+  const hasKeyData = keyData.length > 0;
+  const hasDsData = domain.dsRecords.length > 0;
 
-  if (domain.dsRecords.length) {
+  if (hasKeyData || hasDsData) {
     extension["secDNS:infData"] = {
       ...secDnsAttributes,
-      "secDNS:dsData": domain.dsRecords.map((record) => ({
-        "secDNS:keyTag": record.keyTag,
-        "secDNS:alg": record.algorithm,
-        "secDNS:digestType": record.digestType,
-        "secDNS:digest": record.digest
-      }))
+      ...(hasKeyData
+        ? {
+            "secDNS:keyData": keyData.map((record) => ({
+              "secDNS:flags": record.flags,
+              "secDNS:protocol": record.protocol,
+              "secDNS:alg": record.algorithm,
+              "secDNS:pubKey": record.publicKey
+            }))
+          }
+        : {}),
+      ...(hasDsData
+        ? {
+            "secDNS:dsData": domain.dsRecords.map((record) => ({
+              "secDNS:keyTag": record.keyTag,
+              "secDNS:alg": record.algorithm,
+              "secDNS:digestType": record.digestType,
+              "secDNS:digest": record.digest
+            }))
+          }
+        : {})
     };
   }
 
