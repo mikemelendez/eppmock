@@ -30,8 +30,8 @@ Use these RST input parameters:
 | --- | --- |
 | epp-02 | Greeting with `1.0`/`en`, domain/contact/host objects, `secDNS-1.1`, `rgp-1.0`, `launch-1.0` |
 | epp-03 | Login rejects unknown clID, bad password, missing/wrong/other-registrar client certs (when TLS + fingerprints are configured) |
-| epp-04–06 | check with mixed names in one command: registered/reserved/invalid → `avail=0`, free → `avail=1` (never a single 2005 for the whole check) |
-| epp-07 / epp-09 | Contact create/update validate clID (3–16), ISO country, email, RFC 5733 voice/fax; info round-trips stored values and an IANA ROID (`*-ICANNRST`) |
+| epp-04–06 | check with mixed names: registered/reserved/pattern-invalid → `avail=0`, free → `avail=1`; contact ids outside clIDType length 3–16 return **2005** (must not echo schema-invalid ids) |
+| epp-07 / epp-09 | Contact create/update validate clID (3–16), postal lines ≤255, email local ≤64, ISO country, voice/fax; update statuses limited to client*; info round-trips values and an IANA ROID (`*-ICANNRST`) |
 | epp-08 / epp-12 | Non-sponsoring clients get `2201` on contact/host info and update |
 | epp-10 / epp-24 | Delete returns `1000` and a later info is `2303` |
 | epp-11 / epp-13 | Internal hosts need a superordinate domain + public glue; external hosts may be glueless; `v5`/empty/loopback/`::1` rejected |

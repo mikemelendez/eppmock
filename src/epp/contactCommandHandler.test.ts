@@ -162,3 +162,82 @@ test("contact check reports availability", async () => {
   assert.match(check, /<contact:id avail="0">sh8013<\/contact:id>/);
   assert.match(check, /<contact:id avail="1">free-id<\/contact:id>/);
 });
+
+test("contact check rejects schema-invalid (overlong) contact ids with 2005", async () => {
+  const overlong = `<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <check>
+      <contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0">
+        <contact:id>toolongcontactid1</contact:id>
+      </contact:check>
+    </check>
+  </command>
+</epp>`;
+  const response = await handler().handle(parseEppXml(overlong), context());
+  assert.match(response, /<result code="2005">/);
+});
+
+test("contact create rejects postal lines longer than 255 and email local longer than 64", async () => {
+  const longName = "N".repeat(256);
+  const longNameXml = createXml.replace("John Doe", longName).replace("sh8013", "len255a");
+  const name = await handler().handle(parseEppXml(longNameXml), context());
+  assert.match(name, /<result code="2005">/);
+  assert.match(name, /maximum length of 255/);
+
+  const longLocal = `${"a".repeat(65)}@example.net`;
+  const emailXml = createXml.replace("jdoe@example.melendez", longLocal).replace("sh8013", "len255b");
+  const email = await handler().handle(parseEppXml(emailXml), context());
+  assert.match(email, /<result code="2005">/);
+  assert.match(email, /Contact email is invalid/);
+});
+
+test("contact update rejects non-client statuses and duplicate add/rem", async () => {
+  const contactHandler = handler();
+  await contactHandler.handle(parseEppXml(createXml), context());
+
+  const serverStatus = `<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <update>
+      <contact:update xmlns:contact="urn:ietf:params:xml:ns:contact-1.0">
+        <contact:id>sh8013</contact:id>
+        <contact:add><contact:status s="serverDeleteProhibited"/></contact:add>
+      </contact:update>
+    </update>
+  </command>
+</epp>`;
+  const rejected = await contactHandler.handle(parseEppXml(serverStatus), context());
+  assert.match(rejected, /<result code="2005">/);
+  assert.match(rejected, /not client-settable/);
+
+  const duplicate = `<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <update>
+      <contact:update xmlns:contact="urn:ietf:params:xml:ns:contact-1.0">
+        <contact:id>sh8013</contact:id>
+        <contact:add><contact:status s="clientUpdateProhibited"/></contact:add>
+        <contact:rem><contact:status s="clientUpdateProhibited"/></contact:rem>
+      </contact:update>
+    </update>
+  </command>
+</epp>`;
+  const dup = await contactHandler.handle(parseEppXml(duplicate), context());
+  assert.match(dup, /<result code="2005">/);
+  assert.match(dup, /both add and rem/);
+
+  const okStatus = `<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <update>
+      <contact:update xmlns:contact="urn:ietf:params:xml:ns:contact-1.0">
+        <contact:id>sh8013</contact:id>
+        <contact:add><contact:status s="clientTransferProhibited"/></contact:add>
+      </contact:update>
+    </update>
+  </command>
+</epp>`;
+  const ok = await contactHandler.handle(parseEppXml(okStatus), context());
+  assert.match(ok, /<result code="1000">/);
+});

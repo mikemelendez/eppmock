@@ -170,7 +170,7 @@ export class DomainCommandHandler implements CommandHandler {
       if (launchCreate) {
         const phase = text(namespacedValue(launchCreate, LAUNCH_NS, "phase")) ?? "sunrise";
         const applicationId = `${domain.name}-${Date.now()}`;
-        return domainLaunchCreateResponse(domain.name, phase, applicationId, context.transactionId);
+        return domainLaunchCreateResponse(domain, phase, applicationId, context.transactionId);
       }
 
       return domainCreateResponse(domain, context.transactionId);

@@ -172,7 +172,7 @@ export function domainRestoreResponse(domain: DomainRecord, transactionId?: stri
 }
 
 export function domainLaunchCreateResponse(
-  domainName: string,
+  domain: Pick<DomainRecord, "name" | "createdAt">,
   phase: string,
   applicationId: string,
   transactionId?: string
@@ -185,7 +185,8 @@ export function domainLaunchCreateResponse(
         resData: {
           "domain:creData": {
             ...domainAttributes,
-            "domain:name": domainName
+            "domain:name": domain.name,
+            "domain:crDate": domain.createdAt
           }
         },
         extension: {

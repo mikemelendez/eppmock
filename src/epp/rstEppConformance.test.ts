@@ -480,7 +480,7 @@ test("epp-04/05/06 check returns avail 0/1 instead of failing the command", asyn
 
   const contactCheck = await contactHandler.handle(
     parseEppXml(
-      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><check><contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>chkc01</contact:id><contact:id>freeid99</contact:id><contact:id>ab</contact:id></contact:check></check></command></epp>`
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><check><contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>chkc01</contact:id><contact:id>freeid99</contact:id><contact:id>_bad</contact:id></contact:check></check></command></epp>`
     ),
     ctx()
   );
@@ -488,7 +488,25 @@ test("epp-04/05/06 check returns avail 0/1 instead of failing the command", asyn
   assert.match(contactCheck, /xmlns:xsi="http:\/\/www\.w3\.org\/2001\/XMLSchema-instance"/);
   assert.match(contactCheck, /<contact:id avail="0">chkc01<\/contact:id>/);
   assert.match(contactCheck, /<contact:id avail="1">freeid99<\/contact:id>/);
-  assert.match(contactCheck, /<contact:id avail="0">ab<\/contact:id>/);
+  // Pattern-invalid but schema-length-ok → avail=0 (still echoable in clIDType).
+  assert.match(contactCheck, /<contact:id avail="0">_bad<\/contact:id>/);
+
+  // Length outside clIDType (3–16) must not be echoed — RST epp-06 accepts 2001/2004/2005.
+  const shortId = await contactHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><check><contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>ab</contact:id></contact:check></check></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(shortId), "2005");
+
+  const overlongId = await contactHandler.handle(
+    parseEppXml(
+      `<?xml version="1.0" encoding="UTF-8"?><epp xmlns="urn:ietf:params:xml:ns:epp-1.0"><command><check><contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>toolongcontactid1</contact:id></contact:check></check></command></epp>`
+    ),
+    ctx()
+  );
+  assert.equal(resultCode(overlongId), "2005");
 });
 
 test("epp-10/24 unlinked contact and host delete then info is 2303", async () => {
