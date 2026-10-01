@@ -53,6 +53,8 @@ export interface DomainTransfer {
   requestedAt: string;
   updatedAt: string;
   periodYears?: number;
+  /** Sponsor who must approve or reject. Kept so trnData acID stays the losing registrar. */
+  losingRegistrar?: string;
 }
 
 export type TransferStatus = DomainTransfer["status"];
@@ -78,6 +80,8 @@ export interface DomainRepository {
     periodYears?: number
   ): Promise<DomainRecord | null>;
   replaceHostName(oldName: string, newName: string): Promise<void>;
+  /** Point a domain at a registrar without an EPP transfer. Used to restore seeded names. */
+  setSponsor(name: string, registrarId: string): Promise<DomainRecord | null>;
   list(): Promise<DomainRecord[]>;
   reset(records?: DomainRecord[]): Promise<void>;
 }

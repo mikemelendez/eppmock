@@ -98,6 +98,24 @@ export class SqliteHostRepository implements HostRepository {
     return result.changes > 0;
   }
 
+  async setSponsor(name: string, registrarId: string): Promise<HostRecord | null> {
+    const host = await this.findByName(name);
+
+    if (!host) {
+      return null;
+    }
+
+    if (host.registrarId === registrarId) {
+      return host;
+    }
+
+    const updated: HostRecord = { ...host, registrarId, updatedAt: new Date().toISOString() };
+    this.db
+      .prepare("UPDATE hosts SET registrar_id = ?, updated_at = ? WHERE name = ?")
+      .run(updated.registrarId, updated.updatedAt ?? null, updated.name);
+    return updated;
+  }
+
   async list(): Promise<HostRecord[]> {
     const rows = this.db.prepare("SELECT * FROM hosts ORDER BY name ASC").all() as HostRow[];
     return rows.map(mapRow);

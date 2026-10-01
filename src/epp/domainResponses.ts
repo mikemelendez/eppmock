@@ -259,6 +259,20 @@ export function domainRenewResponse(domain: DomainRecord, transactionId?: string
   });
 }
 
+/** RFC 5731 trStatusType. Internal statuses stay approved/rejected/cancelled. */
+export function eppTransferStatus(status: string | undefined): string {
+  switch (status) {
+    case "approved":
+      return "clientApproved";
+    case "rejected":
+      return "clientRejected";
+    case "cancelled":
+      return "clientCancelled";
+    default:
+      return "pending";
+  }
+}
+
 export function domainTransferResponse(domain: DomainRecord, transactionId?: string): string {
   return buildEppXml({
     epp: {
@@ -272,10 +286,10 @@ export function domainTransferResponse(domain: DomainRecord, transactionId?: str
           "domain:trnData": {
             ...domainAttributes,
             "domain:name": domain.name,
-            "domain:trStatus": domain.transfer?.status ?? "pending",
+            "domain:trStatus": eppTransferStatus(domain.transfer?.status),
             "domain:reID": domain.transfer?.requestedBy ?? domain.registrarId,
             "domain:reDate": domain.transfer?.requestedAt ?? new Date().toISOString(),
-            "domain:acID": domain.registrarId,
+            "domain:acID": domain.transfer?.losingRegistrar ?? domain.registrarId,
             "domain:acDate": domain.transfer?.updatedAt ?? new Date().toISOString(),
             "domain:exDate": domain.expiresAt
           }

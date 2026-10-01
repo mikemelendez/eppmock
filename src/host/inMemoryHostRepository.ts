@@ -74,6 +74,23 @@ export class InMemoryHostRepository implements HostRepository {
     return this.hosts.delete(normalizedName);
   }
 
+  async setSponsor(name: string, registrarId: string): Promise<HostRecord | null> {
+    const normalizedName = normalizeName(name);
+    const host = this.hosts.get(normalizedName);
+
+    if (!host) {
+      return null;
+    }
+
+    if (host.registrarId === registrarId) {
+      return host;
+    }
+
+    const updated: HostRecord = { ...host, registrarId, updatedAt: new Date().toISOString() };
+    this.hosts.set(normalizedName, updated);
+    return updated;
+  }
+
   async list(): Promise<HostRecord[]> {
     return [...this.hosts.values()].sort((a, b) => a.name.localeCompare(b.name));
   }

@@ -18,6 +18,7 @@ import {
   domainRenewResponse,
   domainRestoreResponse,
   domainTransferResponse,
+  eppTransferStatus,
   objectDoesNotExist,
   objectExists,
   objectNotAuthorized,
@@ -448,7 +449,7 @@ export class DomainCommandHandler implements CommandHandler {
             "domain:trnData": {
               "@_xmlns:domain": "urn:ietf:params:xml:ns:domain-1.0",
               "domain:name": domain.name,
-              "domain:trStatus": domain.transfer?.status ?? "pending"
+              "domain:trStatus": eppTransferStatus(domain.transfer?.status)
             }
           }
         });

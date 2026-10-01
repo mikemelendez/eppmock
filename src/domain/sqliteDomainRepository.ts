@@ -178,9 +178,33 @@ export class SqliteDomainRepository implements DomainRepository {
         requestedBy: domain.transfer?.requestedBy ?? registrarId,
         requestedAt: domain.transfer?.requestedAt ?? now,
         updatedAt: now,
-        periodYears: transferPeriod
+        periodYears: transferPeriod,
+        losingRegistrar: domain.transfer?.losingRegistrar ?? domain.registrarId
       },
       updatedAt: now
+    };
+
+    this.save(updated);
+    return updated;
+  }
+
+  async setSponsor(name: string, registrarId: string): Promise<DomainRecord | null> {
+    const domain = await this.findByName(name);
+
+    if (!domain) {
+      return null;
+    }
+
+    if (domain.registrarId === registrarId && !domain.transfer) {
+      return domain;
+    }
+
+    const updated: DomainRecord = {
+      ...domain,
+      registrarId,
+      statuses: normalizeStatuses(domain.statuses.filter((status) => status !== "pendingTransfer")),
+      transfer: undefined,
+      updatedAt: new Date().toISOString()
     };
 
     this.save(updated);
